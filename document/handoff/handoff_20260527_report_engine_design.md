@@ -66,7 +66,7 @@ backend는 `backend/.env`의 Novita AI OpenAI-compatible API 설정을 사용한
 | `LLM_TIMEOUT_SECONDS` | `120` |
 | `LLM_CHUNK_SIZE_CHARS` | `12000` |
 | `LLM_STAGE_BATCH_SIZE` | `12` |
-| `LLM_API_KEY` | 값 기록 금지 |
+| Novita 인증 환경 변수 | 값 기록 금지 |
 
 ## 5. 데이터와 템플릿 이미지 상태
 
@@ -136,7 +136,7 @@ Stage 2 componentKey는 아래 5개로 고정한다.
 2. `backend/data/etf_data.json`과 Stage 2 파생 데이터 2개를 로딩하는 repository 계층을 만든다.
 3. Stage 1 템플릿 선택/이미지 확보를 구현하고 파일 존재 검사를 추가한다.
 4. Stage 2는 sample adapter를 먼저 구현해 LLM 없이 5개 컴포넌트 흐름을 재현한다.
-5. Novita adapter는 이후 연결하고, `LLM_API_KEY` 값이 로그나 산출물에 남지 않도록 redaction을 먼저 적용한다.
+5. Novita adapter는 이후 연결하고, Novita 인증 환경 변수 값이 로그나 산출물에 남지 않도록 redaction을 먼저 적용한다.
 6. Stage 3는 template preview image와 Stage 2 컴포넌트 5개를 입력으로 받는 HTML 생성 경계부터 구현한다.
 7. Stage 4는 Playwright/Chromium screenshot 기반으로 `report.html`, `preview.png`, `job.json`, `events.jsonl` 저장을 구현한다.
 8. Stage 5는 issue JSON schema 검증과 `maxIterations=3` 반복 한도를 둔다.
@@ -145,7 +145,7 @@ Stage 2 componentKey는 아래 5개로 고정한다.
 
 ## 8. 주의사항
 
-- `LLM_API_KEY` 실제 값은 어떤 문서, 로그, 테스트 출력에도 기록하지 않는다.
+- Novita 인증 환경 변수의 실제 값은 어떤 문서, 로그, 테스트 출력에도 기록하지 않는다.
 - 국민은행 전용 HTML 템플릿은 아직 없다. 현재 변경은 국민은행 preview image 반영이며 `sourceHtml` 변경이 아니다.
 - A4 페이지네이션은 현재 PoC 제외 범위이며 운영 전환 Open Issue로 남아 있다.
 - frontend 구현은 아직 시작되지 않았다. frontend 문서 분리는 UI 요구사항과 기술 스택이 정해진 뒤 진행한다.

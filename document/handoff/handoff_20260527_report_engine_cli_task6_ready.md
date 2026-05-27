@@ -129,8 +129,8 @@ Stage 2는 데이터 소스별 HTML component를 5개 고정 순서로 생성한
   - HTML fragment에 `<style`, `style=`, `class=`를 허용하지 않는다.
   - `performance_chart`만 `chartSpec` object를 가진다.
   - 나머지 4개 component의 `chartSpec`은 `null`이다.
-- `LLM_API_KEY` 실제 값은 prompt, log, exception, event, handoff, test output에 기록하지 않는다.
-- Novita 실호출은 API key와 네트워크 의존성이 있으므로 기본 CI/자동 테스트 경로로 두지 않는다.
+- Novita 인증 환경 변수의 실제 값은 prompt, log, exception, event, handoff, test output에 기록하지 않는다.
+- Novita 실호출은 인증값과 네트워크 의존성이 있으므로 기본 CI/자동 테스트 경로로 두지 않는다.
 
 ## 8. 다음 세션 작업 체크리스트
 

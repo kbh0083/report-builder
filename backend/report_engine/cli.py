@@ -43,10 +43,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             outputDir=args.output_dir,
         )
         try:
-            print(event_to_stdout_line(run_with_artifact_logging(request)))
+            print(event_to_stdout_line(run_with_artifact_logging(request, progress_callback=_print_progress)))
             return 0
         except Exception as exc:
             print(json.dumps({"event": "job.failed", "detail": str(exc)}, ensure_ascii=False))
             return 1
     parser.print_help()
     return 0
+
+
+def _print_progress(event: dict[str, object]) -> None:
+    print(event_to_stdout_line(event), flush=True)
