@@ -1,0 +1,480 @@
+{
+  "schemaVersion": "poc.etfMonthlyIssueReport.dataset.v1",
+  "template": {
+    "id": "kb_kodex_monthly_guidebook_379800",
+    "sourceHtml": "document/report/우리은행_월간_리포트.html",
+    "previewImage": "document/report/국민은행_월간_리포트.png",
+    "page": {
+      "size": "A4",
+      "orientation": "portrait"
+    }
+  },
+  "baseData": {
+    "issuer": {
+      "brandName": "Kodex",
+      "companyNameKo": "삼성자산운용",
+      "companyNameEn": "Samsung Asset Management",
+      "teamName": "삼성자산운용 연금마케팅팀",
+      "contactEmail": "pension.fund@samsung.com"
+    },
+    "salesChannel": {
+      "distributorName": "국민은행",
+      "classificationLabel": "월간 가이드북"
+    },
+    "product": {
+      "brandPrefix": "Kodex",
+      "fundName": "미국 S&P500",
+      "productName": "Kodex 미국 S&P500 ETF",
+      "reportTitleSuffix": "월간 가이드북",
+      "benchmarkName": "S&P500 Index"
+    },
+    "sectionDefinitions": {
+      "performanceTrend": {
+        "title": "ETF 성과 추이",
+        "unit": "%",
+        "chartCategories": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "chartLegend": [
+          "Kodex 미국 S&P500",
+          "BM"
+        ],
+        "summaryColumns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      },
+      "topHoldings": {
+        "title": "ETF Top 10 보유내역",
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "totalLabel": "합계",
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      },
+      "review": {
+        "title": "Kodex 미국 S&P500 ETF 리뷰",
+        "renderType": "bullet-list"
+      },
+      "outlook": {
+        "title": "Kodex 미국 S&P500 ETF 향후 전망",
+        "renderType": "lead-numbered-closing-list",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      },
+      "footer": {
+        "note": "상기 내용은 증권사 애널리스트 의견을 종합하여 작성한 것으로, 향후 시장 상황에 따라 변경 될 수 있습니다."
+      }
+    }
+  },
+  "monthlySnapshots": [
+    {
+      "monthId": "2026-01",
+      "periodLabel": "2026년 1월",
+      "asOf": "2026.01.31",
+      "asOfKo": "2026년 1월 31일",
+      "sampleDataType": "synthetic",
+      "performanceTrend": {
+        "chartSeries": [
+          {
+            "name": "Kodex 미국 S&P500",
+            "values": [
+              2.8,
+              7.9,
+              -1.2,
+              16.4,
+              95.2
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              2.6,
+              7.6,
+              -1.4,
+              16.3,
+              98.1
+            ]
+          }
+        ],
+        "summaryValues": [
+          2.84,
+          7.92,
+          -1.18,
+          16.42,
+          2.84,
+          95.2
+        ]
+      },
+      "topHoldings": {
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.62
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 7.15
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 6.08
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 3.96
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.75
+          },
+          {
+            "rank": 6,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.43
+          },
+          {
+            "rank": 7,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.06
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.69
+          },
+          {
+            "rank": 9,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.73
+          },
+          {
+            "rank": 10,
+            "name": "BERKSHIRE HATHAWAY",
+            "weightPercent": 1.64
+          }
+        ],
+        "top10TotalWeightPercent": 37.11,
+        "totalHoldingCount": 505
+      },
+      "review": {
+        "items": [
+          "미국 대형주 실적 기대와 AI 인프라 투자 확대가 지수 성과를 견인",
+          "NVIDIA, MICROSOFT, APPLE 등 상위 편입 종목이 기술주 중심 상승 흐름을 주도",
+          "환헤지 미시행 구조로 원달러 환율 등락이 단기 성과 변동성을 일부 확대",
+          "S&P500 전반의 업종 분산 효과가 개별 종목 변동성을 완화하며 1개월 수익률이 플러스 전환"
+        ]
+      },
+      "outlook": {
+        "lead": "미국 대형 우량주의 이익 개선 기대가 유지되며 완만한 상승 흐름을 이어갈 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "AI 투자와 클라우드 수요 확대가 대형 기술주의 이익 모멘텀을 지지할 전망"
+          },
+          {
+            "number": "②",
+            "text": "금리 인하 기대가 재부각될 경우 성장주와 경기민감주의 동반 회복 가능성",
+            "highlightText": "금리 인하 기대가 재부각"
+          },
+          {
+            "number": "③",
+            "text": "환율 변동성은 남아 있으나 비헤지 구조가 달러 강세 구간에서 성과에 기여할 수 있음"
+          }
+        ],
+        "closing": "미국 대표기업에 분산 투자하는 구조상 장기 핵심 자산 배분 수단으로 활용 가능"
+      }
+    },
+    {
+      "monthId": "2026-02",
+      "periodLabel": "2026년 2월",
+      "asOf": "2026.02.28",
+      "asOfKo": "2026년 2월 28일",
+      "sampleDataType": "synthetic",
+      "performanceTrend": {
+        "chartSeries": [
+          {
+            "name": "Kodex 미국 S&P500",
+            "values": [
+              1.2,
+              8.7,
+              -0.4,
+              17.3,
+              97.5
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              1.0,
+              8.4,
+              -0.6,
+              17.4,
+              100.0
+            ]
+          }
+        ],
+        "summaryValues": [
+          1.18,
+          8.66,
+          -0.42,
+          17.34,
+          4.05,
+          97.46
+        ]
+      },
+      "topHoldings": {
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.78
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 7.1
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 5.96
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 4.02
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.79
+          },
+          {
+            "rank": 6,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.51
+          },
+          {
+            "rank": 7,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.09
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.7
+          },
+          {
+            "rank": 9,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.69
+          },
+          {
+            "rank": 10,
+            "name": "BERKSHIRE HATHAWAY",
+            "weightPercent": 1.63
+          }
+        ],
+        "top10TotalWeightPercent": 37.27,
+        "totalHoldingCount": 505
+      },
+      "review": {
+        "items": [
+          "미국 물가와 금리 지표 확인 과정에서 성장주 변동성이 확대되었으나 대형주 중심 흐름은 유지",
+          "NVIDIA와 BROADCOM 등 반도체 관련 종목 비중 상승이 포트폴리오 성과를 방어",
+          "APPLE과 TESLA는 수요 우려로 상대적으로 부진했지만 지수 내 업종 분산이 하락 폭을 제한",
+          "비헤지 구조의 환율 효과가 월중 성과 변동성을 키웠으나 누적 수익률은 견조한 수준을 유지"
+        ]
+      },
+      "outlook": {
+        "lead": "실적 시즌 이후 종목별 차별화가 커질 수 있으나 미국 대형주의 이익 체력은 유효한 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "AI 반도체와 클라우드 투자 확대가 상위 기술주 실적 추정치 상향을 이끌 가능성"
+          },
+          {
+            "number": "②",
+            "text": "금리 변동성이 완화되면 S&P500 밸류에이션 부담이 점진적으로 낮아질 전망",
+            "highlightText": "금리 변동성이 완화"
+          },
+          {
+            "number": "③",
+            "text": "소비와 고용 지표 둔화 여부에 따라 경기민감 업종의 단기 등락은 확대될 수 있음"
+          }
+        ],
+        "closing": "상위 대형주의 성장성과 업종 분산을 동시에 활용하는 장기 투자 포지션으로 접근 가능"
+      }
+    },
+    {
+      "monthId": "2026-03",
+      "periodLabel": "2026년 3월",
+      "asOf": "2026.03.31",
+      "asOfKo": "2026년 3월 31일",
+      "sampleDataType": "source_numeric_with_synthetic_commentary",
+      "performanceTrend": {
+        "chartSeries": [
+          {
+            "name": "Kodex 미국 S&P500",
+            "values": [
+              6.0,
+              12.0,
+              0.6,
+              19.1,
+              101.1
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              5.7,
+              11.7,
+              0.4,
+              19.2,
+              104.2
+            ]
+          }
+        ],
+        "summaryValues": [
+          5.95,
+          11.97,
+          0.56,
+          19.09,
+          11.97,
+          101.13
+        ]
+      },
+      "topHoldings": {
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.93
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 7.05
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 5.84
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 4.04
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.81
+          },
+          {
+            "rank": 6,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.59
+          },
+          {
+            "rank": 7,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.11
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.71
+          },
+          {
+            "rank": 9,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.67
+          },
+          {
+            "rank": 10,
+            "name": "BERKSHIRE HATHAWAY",
+            "weightPercent": 1.62
+          }
+        ],
+        "top10TotalWeightPercent": 37.37,
+        "totalHoldingCount": 505
+      },
+      "review": {
+        "items": [
+          "S&P500 지수가 대형 기술주와 플랫폼 기업 중심으로 반등하며 ETF의 1개월 수익률이 5.95%를 기록",
+          "NVIDIA, MICROSOFT, APPLE이 높은 편입 비중을 유지하며 포트폴리오 핵심 성과 요인으로 작용",
+          "3개월 수익률은 11.97%로 기초지수와 유사한 흐름을 보이며 미국 대표지수 추종 특성이 확인",
+          "환헤지 미시행 구조로 환율 변동 영향은 존재하나 장기 상장후 수익률은 101.13%로 높은 누적 성과를 유지"
+        ]
+      },
+      "outlook": {
+        "lead": "미국 대표 대형주의 이익 성장과 AI 투자 사이클이 이어지며 중장기 성과 기반은 견조할 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "NVIDIA와 MICROSOFT 중심의 AI 생태계 확장이 상위 편입 종목 이익 전망을 지지"
+          },
+          {
+            "number": "②",
+            "text": "S&P500 내 업종 분산 효과가 특정 테마 쏠림 리스크를 완화하는 역할 기대",
+            "highlightText": "업종 분산 효과"
+          },
+          {
+            "number": "③",
+            "text": "금리와 환율 변동성은 단기 부담이나 미국 대형주의 현금흐름 안정성이 하방을 지지할 전망"
+          }
+        ],
+        "closing": "핵심 미국 주식 익스포저를 확보하려는 투자자에게 장기 분산 투자 수단으로 적합한 후보"
+      }
+    }
+  ],
+  "styleCandidates": {
+    "theme": {
+      "primary": "#0258ff",
+      "chartBlue": "#1967f2",
+      "benchmarkGray": "#8e8e8e",
+      "tableHeaderBlue": "#2d66f3",
+      "ruleGray": "#c4c4c4",
+      "paper": "#ffffff"
+    },
+    "layout": {
+      "pageSize": "A4 portrait",
+      "columns": 2,
+      "mainSections": [
+        "performanceTrend",
+        "topHoldings",
+        "review",
+        "outlook"
+      ]
+    }
+  }
+}

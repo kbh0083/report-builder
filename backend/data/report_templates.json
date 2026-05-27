@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "poc.etfReport.templates.v1",
+  "templateCount": 2,
+  "templates": [
+    {
+      "templateId": "tpl_kb_monthly_guidebook",
+      "name": "국민은행 월간 가이드북",
+      "sourceHtml": "document/report/우리은행_월간_리포트.html",
+      "previewImage": "document/report/국민은행_월간_리포트.png",
+      "page": {
+        "size": "A4",
+        "orientation": "portrait"
+      }
+    },
+    {
+      "templateId": "tpl_woori_monthly_report",
+      "name": "우리은행 월간 리포트",
+      "sourceHtml": "document/report/우리은행_월간_리포트.html",
+      "previewImage": "document/report/우리은행_월간_리포트.png",
+      "page": {
+        "size": "A4",
+        "orientation": "portrait"
+      }
+    }
+  ]
+}

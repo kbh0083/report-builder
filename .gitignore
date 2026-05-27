@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+backend/.venv/
+backend/.env
+backend/.pytest_cache/
+.pytest_cache/
+
+runs/
+backend/runs/
+
+document/report/
+document/ETF Reporting system 데이터/

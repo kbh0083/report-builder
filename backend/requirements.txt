@@ -1,0 +1,27 @@
+# Fund Order Extractor dependencies
+# Recommended: Python 3.11.x (tested with 3.11.8)
+#
+# Setup:
+#   python3 -m venv .venv
+#   .venv/bin/pip install -U pip
+#   .venv/bin/pip install -r requirements.txt
+
+# Core runtime (app/, main.py, scripts/)
+pydantic==2.12.5
+PyYAML==6.0.3
+langchain==1.2.11
+langchain-openai==1.1.11
+openpyxl==3.1.5
+xlrd==2.0.2
+pdfplumber==0.11.9
+beautifulsoup4==4.14.3
+lxml==5.4.0
+
+# Tests & batch scripts (tests/variable_data, tests/tool)
+requests==2.32.5
+PyMuPDF==1.27.2
+pillow==12.1.1
+weasyprint==68.1
+pytest==9.0.2
+python-dotenv==1.2.1
+playwright==1.57.0

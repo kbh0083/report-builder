@@ -1,0 +1,244 @@
+{
+  "schemaVersion": "poc.etfMonthlyIssueReport.dataset.v1",
+  "template": {
+    "id": "woori_kodex_monthly_issue_report",
+    "sourceHtml": "document/report/우리은행_월간_리포트.html",
+    "previewImage": "document/report/우리은행_월간_리포트.png",
+    "page": {
+      "size": "A4",
+      "orientation": "portrait"
+    }
+  },
+  "baseData": {
+    "issuer": {
+      "brandName": "Kodex",
+      "companyNameKo": "삼성자산운용",
+      "companyNameEn": "Samsung Asset Management",
+      "teamName": "삼성자산운용 연금마케팅팀",
+      "contactEmail": "pension.fund@samsung.com"
+    },
+    "salesChannel": {
+      "distributorName": "우리은행",
+      "classificationLabel": "판매사 사내한"
+    },
+    "product": {
+      "brandPrefix": "Kodex",
+      "fundName": "코리아배당성장채권혼합",
+      "productName": "Kodex 코리아배당성장채권혼합 ETF",
+      "reportTitleSuffix": "이슈 리포트",
+      "benchmarkName": "배당성장 채권혼합지수"
+    },
+    "sectionDefinitions": {
+      "performanceTrend": {
+        "title": "ETF 성과 추이",
+        "unit": "%",
+        "chartCategories": ["1개월", "3개월", "6개월", "1년", "상장이후"],
+        "chartLegend": ["Kodex 코리아배당성장채권혼합", "BM"],
+        "summaryColumns": ["1개월", "3개월", "6개월", "1년", "연초후", "상장후"],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : 배당성장 채권혼합지수",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      },
+      "topHoldings": {
+        "title": "ETF Top 10 보유내역",
+        "columns": ["No.", "종목명", "보유비중(%)"],
+        "totalLabel": "합계",
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      },
+      "review": {
+        "title": "Kodex 코리아배당성장채권혼합 ETF 리뷰",
+        "renderType": "bullet-list"
+      },
+      "outlook": {
+        "title": "Kodex 코리아배당성장채권혼합 ETF 향후 전망",
+        "renderType": "lead-numbered-closing-list",
+        "numberLabels": ["①", "②", "③"]
+      },
+      "footer": {
+        "note": "상기 내용은 증권사 애널리스트 의견을 종합하여 작성한 것으로, 향후 시장 상황에 따라 변경 될 수 있습니다."
+      }
+    }
+  },
+  "monthlySnapshots": [
+    {
+      "monthId": "2026-01",
+      "periodLabel": "2026년 1월",
+      "asOf": "2026.01.31",
+      "asOfKo": "2026년 1월 31일",
+      "sampleDataType": "synthetic",
+      "performanceTrend": {
+        "chartSeries": [
+          {
+            "name": "Kodex 코리아배당성장채권혼합",
+            "values": [3.2, 8.4, 11.8, 22.4, 60.2]
+          },
+          {
+            "name": "BM",
+            "values": [2.9, 7.8, 11.1, 21.7, 50.4]
+          }
+        ],
+        "summaryValues": [3.24, 8.41, 11.83, 22.36, 3.24, 60.18]
+      },
+      "topHoldings": {
+        "rows": [
+          { "rank": 1, "name": "국고02250-2806(25-4)", "weightPercent": 20.52 },
+          { "rank": 2, "name": "KODEX 국고채3년", "weightPercent": 17.44 },
+          { "rank": 3, "name": "KODEX 코리아배당성장", "weightPercent": 16.86 },
+          { "rank": 4, "name": "국고02500-3009(25-8)", "weightPercent": 16.01 },
+          { "rank": 5, "name": "국고02750-2812(25-10)", "weightPercent": 15.21 },
+          { "rank": 6, "name": "현대차", "weightPercent": 0.76 },
+          { "rank": 7, "name": "키움증권", "weightPercent": 0.67 },
+          { "rank": 8, "name": "DB손해보험", "weightPercent": 0.63 },
+          { "rank": 9, "name": "NH투자증권", "weightPercent": 0.61 },
+          { "rank": 10, "name": "기아", "weightPercent": 0.59 }
+        ],
+        "top10TotalWeightPercent": 89.3,
+        "totalHoldingCount": 58
+      },
+      "review": {
+        "items": [
+          "국고채 금리가 안정화되며 채권 비중이 월간 성과에 긍정적으로 기여",
+          "현대차, 기아 등 완성차 종목과 주요 금융주의 배당 기대가 확대되며 주식 편입 종목 수익률이 개선",
+          "채권 70% 수준의 방어적 배분과 배당성장주 반등이 맞물리며 1개월 수익률이 3.2% 수준으로 회복",
+          "보험주와 증권주는 주주환원 기대가 이어지며 포트폴리오의 안정적인 인컴 성격을 보강"
+        ]
+      },
+      "outlook": {
+        "lead": "금리 안정과 배당성장주 강세가 이어질 경우 완만한 상승 흐름을 이어갈 것으로 판단",
+        "numberedItems": [
+          { "number": "①", "text": "국고채 금리는 기준금리 인하 기대와 수급 안정으로 가격 회복세 지속 전망" },
+          { "number": "②", "text": "자동차와 금융 업종의 주주환원 정책이 강화되며 배당성장주 저가 매수세 유입 기대", "highlightText": "주주환원 정책이 강화" },
+          { "number": "③", "text": "현대차, 기아, 삼성생명 등 고배당 성향 종목의 이익 안정성이 포트폴리오 하방을 지지" }
+        ],
+        "closing": "글로벌 경기 둔화 우려가 남아 있으나, 채권과 배당성장주의 혼합 구조가 변동성 완화에 유효한 대안"
+      }
+    },
+    {
+      "monthId": "2026-02",
+      "periodLabel": "2026년 2월",
+      "asOf": "2026.02.28",
+      "asOfKo": "2026년 2월 28일",
+      "sampleDataType": "synthetic",
+      "performanceTrend": {
+        "chartSeries": [
+          {
+            "name": "Kodex 코리아배당성장채권혼합",
+            "values": [-1.4, 7.9, 10.4, 20.8, 58.0]
+          },
+          {
+            "name": "BM",
+            "values": [-1.6, 7.2, 9.9, 20.2, 48.3]
+          }
+        ],
+        "summaryValues": [-1.36, 7.86, 10.42, 20.77, 1.84, 58.02]
+      },
+      "topHoldings": {
+        "rows": [
+          { "rank": 1, "name": "국고02250-2806(25-4)", "weightPercent": 20.68 },
+          { "rank": 2, "name": "KODEX 국고채3년", "weightPercent": 17.33 },
+          { "rank": 3, "name": "KODEX 코리아배당성장", "weightPercent": 16.98 },
+          { "rank": 4, "name": "국고02500-3009(25-8)", "weightPercent": 16.20 },
+          { "rank": 5, "name": "국고02750-2812(25-10)", "weightPercent": 15.27 },
+          { "rank": 6, "name": "현대차", "weightPercent": 0.75 },
+          { "rank": 7, "name": "키움증권", "weightPercent": 0.64 },
+          { "rank": 8, "name": "DB손해보험", "weightPercent": 0.61 },
+          { "rank": 9, "name": "NH투자증권", "weightPercent": 0.57 },
+          { "rank": 10, "name": "기아", "weightPercent": 0.54 }
+        ],
+        "top10TotalWeightPercent": 89.57,
+        "totalHoldingCount": 58
+      },
+      "review": {
+        "items": [
+          "국고채 금리가 재차 등락하며 채권 가격 변동성이 확대되어 월간 성과에 부담으로 작용",
+          "현대차, 기아 등 완성차 종목은 통상 환경 불확실성으로 조정을 받았고, 증권주는 거래대금 둔화 우려로 수익률이 약세",
+          "주식 편입 종목 조정에도 채권 중심 배분이 손실 폭을 제한하며 1개월 수익률 하락을 -1.4% 수준으로 방어",
+          "보험주는 배당 안정성이 부각되며 상대적으로 견조한 흐름을 유지"
+        ]
+      },
+      "outlook": {
+        "lead": "금리 변동성이 남아 있으나 채권 비중의 방어력과 배당주의 주주환원 기대가 완만한 회복을 지지할 것으로 판단",
+        "numberedItems": [
+          { "number": "①", "text": "국고채 금리는 물가와 환율 지표 확인 후 점진적으로 안정될 가능성" },
+          { "number": "②", "text": "자동차와 금융 업종은 단기 조정 이후 배당 매력이 재부각되는 구간 진입 기대", "highlightText": "배당 매력이 재부각" },
+          { "number": "③", "text": "보험 및 증권주는 주주환원 발표가 구체화될수록 포트폴리오 성과 기여도가 확대될 전망" }
+        ],
+        "closing": "매크로 불확실성은 이어지지만 채권 방어력과 고배당 종목의 인컴 기여를 함께 활용하는 전략이 유효"
+      }
+    },
+    {
+      "monthId": "2026-03",
+      "periodLabel": "2026년 3월",
+      "asOf": "2026.03.31",
+      "asOfKo": "2026년 3월 31일",
+      "sampleDataType": "template_source",
+      "performanceTrend": {
+        "chartSeries": [
+          {
+            "name": "Kodex 코리아배당성장채권혼합",
+            "values": [-4.9, 6.7, 9.6, 19.7, 55.8]
+          },
+          {
+            "name": "BM",
+            "values": [-5.2, 6.4, 9.2, 19.5, 45.7]
+          }
+        ],
+        "summaryValues": [-4.89, 6.65, 9.55, 19.69, 6.65, 55.81]
+      },
+      "topHoldings": {
+        "rows": [
+          { "rank": 1, "name": "국고02250-2806(25-4)", "weightPercent": 20.84 },
+          { "rank": 2, "name": "KODEX 국고채3년", "weightPercent": 17.29 },
+          { "rank": 3, "name": "KODEX 코리아배당성장", "weightPercent": 17.12 },
+          { "rank": 4, "name": "국고02500-3009(25-8)", "weightPercent": 16.35 },
+          { "rank": 5, "name": "국고02750-2812(25-10)", "weightPercent": 15.32 },
+          { "rank": 6, "name": "현대차", "weightPercent": 0.74 },
+          { "rank": 7, "name": "키움증권", "weightPercent": 0.61 },
+          { "rank": 8, "name": "DB손해보험", "weightPercent": 0.59 },
+          { "rank": 9, "name": "NH투자증권", "weightPercent": 0.57 },
+          { "rank": 10, "name": "기아", "weightPercent": 0.57 }
+        ],
+        "top10TotalWeightPercent": 90.0,
+        "totalHoldingCount": 58
+      },
+      "review": {
+        "items": [
+          "국고채권의 금리가 지정학적 리스크와 국제 유가 상승에 따른 인플레이션 우려로 상승 가격 하락 부정적 기여",
+          "현대차, 기아 등 완성차 종목이 글로벌 통상 환경 불확실성으로 조정을 받았고, 키움증권, 삼성증권 등 금융주 또한 금리 변동성 확대와 거래대금 감소 우려에 수익률이 둔화",
+          "급락세를 보인 주식 대비 70%의 채권 비중이 완충 작용을 하며 전체 손실 폭을 -4.9% 수준으로 방어",
+          "보험주들이 상대적으로 견조한 배당 성향을 유지하며 하락장에서도 상대적인 주가 방어력을 시현"
+        ]
+      },
+      "outlook": {
+        "lead": "배당성장주의 가치 부각과 채권 가격 안정화가 맞물리며 완만한 회복세를 보일 것으로 판단",
+        "numberedItems": [
+          { "number": "①", "text": "국고채 금리는 오버슈팅 구간을 지나 점진적으로 안정화되어 가격 반등 전망" },
+          { "number": "②", "text": "NH투자증권, 대신증권 등 주요 종목의 주주환원 정책이 구체화되는 시기로 저가 매수세 유입 기대", "highlightText": "주주환원 정책이 구체화되는 시기" },
+          { "number": "③", "text": "현대차, 삼성생명 등의 자사주 소각 및 배당 확대 기조로 상방 압력은 여전히 유효" }
+        ],
+        "closing": "글로벌 경기 둔화 우려와 매크로 불확실성이 지속되는 구간에서 동 ETF는 변동성을 낮추며 꾸준한 인컴 수익을 추구하는 안정적인 대안"
+      }
+    }
+  ],
+  "styleCandidates": {
+    "theme": {
+      "primary": "#0258ff",
+      "chartBlue": "#1967f2",
+      "benchmarkGray": "#8e8e8e",
+      "tableHeaderBlue": "#2d66f3",
+      "ruleGray": "#c4c4c4",
+      "paper": "#ffffff"
+    },
+    "layout": {
+      "pageSize": "A4 portrait",
+      "columns": 2,
+      "mainSections": ["performanceTrend", "topHoldings", "review", "outlook"]
+    }
+  }
+}

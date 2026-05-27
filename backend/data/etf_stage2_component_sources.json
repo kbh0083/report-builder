@@ -1,0 +1,3028 @@
+{
+  "schemaVersion": "poc.etfReport.stage2ComponentSources.v1",
+  "sourceBundle": "backend/data/etf_data.json",
+  "sourceSchemaVersion": "poc.etfMonthlyIssueReport.bundle.v1",
+  "datasetSchemaVersion": "poc.etfMonthlyIssueReport.dataset.v1",
+  "componentSourceCount": 60,
+  "componentKeys": [
+    "performance_chart",
+    "performance_summary",
+    "top_holdings",
+    "review",
+    "outlook"
+  ],
+  "componentSources": [
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_01_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국 S&P500(H)",
+            "values": [
+              1.4,
+              8.9,
+              1.4,
+              12.1,
+              44.8
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              1.6,
+              9.2,
+              1.8,
+              13.2,
+              49.2
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_01_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          1.42,
+          8.9,
+          1.35,
+          12.06,
+          1.42,
+          44.82
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_01_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.48
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 6.96
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 5.85
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 3.86
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.69
+          },
+          {
+            "rank": 6,
+            "name": "iShares S&P500 Index Fund",
+            "weightPercent": 2.61
+          },
+          {
+            "rank": 7,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.44
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.01
+          },
+          {
+            "rank": 9,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.64
+          },
+          {
+            "rank": 10,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.58
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 37.12,
+        "totalHoldingCount": 507,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_01_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국 S&P500(H) ETF 리뷰",
+      "payload": {
+        "items": [
+          "미국 대형주 반등이 ETF 성과에 기여했으나 환헤지 비용과 금리 변동성이 일부 부담으로 작용",
+          "NVIDIA, MICROSOFT, APPLE 등 핵심 종목의 비중이 높은 수준을 유지하며 지수 추종 성과를 견인",
+          "환헤지 시행 구조로 원달러 환율 변화에 따른 수익률 흔들림은 비헤지형 대비 제한",
+          "S&P500 내 우량 대형주 분산 효과가 월간 변동성 확대 구간에서 방어력을 제공"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_01_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국 S&P500(H) ETF 향후 전망",
+      "payload": {
+        "lead": "환율 변동을 줄이면서 미국 대표지수에 투자하려는 수요가 유지될 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "미국 대형주의 실적 개선 기대가 이어지며 지수 기반 성과 회복 가능성"
+          },
+          {
+            "number": "②",
+            "text": "환헤지 전략은 원화 강세 전환 시 비헤지형 대비 상대 성과를 높일 수 있음",
+            "highlightText": "환헤지 전략"
+          },
+          {
+            "number": "③",
+            "text": "금리 인하 시점에 대한 기대 변화가 단기 변동성의 핵심 변수로 작용할 전망"
+          }
+        ],
+        "closing": "환율 리스크를 낮춘 미국 대형주 투자 수단으로 장기 포트폴리오 내 보완재 역할 가능",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_02_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국 S&P500(H)",
+            "values": [
+              0.9,
+              10.4,
+              2.4,
+              13.1,
+              46.9
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              1.0,
+              10.9,
+              3.0,
+              14.5,
+              52.1
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_02_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          0.86,
+          10.44,
+          2.36,
+          13.14,
+          2.29,
+          46.91
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_02_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.6
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 6.91
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 5.76
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 3.9
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.72
+          },
+          {
+            "rank": 6,
+            "name": "iShares S&P500 Index Fund",
+            "weightPercent": 2.64
+          },
+          {
+            "rank": 7,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.48
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.03
+          },
+          {
+            "rank": 9,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.65
+          },
+          {
+            "rank": 10,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.6
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 37.29,
+        "totalHoldingCount": 507,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_02_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국 S&P500(H) ETF 리뷰",
+      "payload": {
+        "items": [
+          "미국 물가 지표와 금리 재평가로 주식시장 등락이 확대되며 1개월 성과는 완만한 플러스에 그침",
+          "상위 기술주와 플랫폼 기업의 실적 기대는 유지되었지만 일부 소비재와 전기차 관련 종목은 조정",
+          "환헤지 구조로 환율 상승 수혜는 제한되었으나 원화 변동에 따른 불확실성은 낮아짐",
+          "3개월 성과는 두 자릿수 수준을 유지하며 미국 대형주 중심 투자 매력이 이어짐"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_02_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국 S&P500(H) ETF 향후 전망",
+      "payload": {
+        "lead": "환헤지형 S&P500 익스포저는 환율 방향성보다 지수 자체 성과에 집중하는 투자자에게 유효할 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "대형 기술주의 이익 전망이 유지될 경우 지수 상승 추세 재개 가능성"
+          },
+          {
+            "number": "②",
+            "text": "원화 강세 압력이 커지는 구간에서는 환헤지형의 상대 매력이 부각될 수 있음",
+            "highlightText": "환헤지형의 상대 매력"
+          },
+          {
+            "number": "③",
+            "text": "헤지 비용과 금리 차는 비헤지형 대비 성과 차이를 만드는 주요 변수로 관리 필요"
+          }
+        ],
+        "closing": "미국 대표지수 장기 투자와 환율 리스크 관리를 동시에 고려하는 포트폴리오에 적합",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_03_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국 S&P500(H)",
+            "values": [
+              2.9,
+              13.9,
+              3.9,
+              15.4,
+              50.2
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              3.1,
+              14.4,
+              4.8,
+              17.0,
+              56.1
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_03_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          2.91,
+          13.92,
+          3.94,
+          15.37,
+          13.92,
+          50.2
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_03_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.71
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 6.87
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 5.69
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 3.93
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.74
+          },
+          {
+            "rank": 6,
+            "name": "iShares S&P500 Index Fund",
+            "weightPercent": 2.67
+          },
+          {
+            "rank": 7,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.52
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.05
+          },
+          {
+            "rank": 9,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.66
+          },
+          {
+            "rank": 10,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.62
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 37.46,
+        "totalHoldingCount": 507,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_03_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국 S&P500(H) ETF 리뷰",
+      "payload": {
+        "items": [
+          "환헤지형 S&P500 ETF는 1개월 2.91%, 3개월 13.92%의 성과를 기록하며 미국 대형주 반등을 반영",
+          "NVIDIA, MICROSOFT, APPLE 등 상위 종목이 높은 비중을 유지하며 성과의 핵심 기여 요인으로 작용",
+          "환헤지 시행으로 환율 변동 영향은 제한되었으나 비헤지형 대비 달러 강세 수혜는 낮게 반영",
+          "507개 종목에 분산 투자하며 S&P500 Index 추종 구조와 대형주 중심 노출을 유지"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_h_2026_03_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500_h",
+        "productName": "Kodex 미국 S&P500(H) ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국 S&P500(H) ETF 향후 전망",
+      "payload": {
+        "lead": "미국 대형주 상승 흐름과 원화 변동성 관리 수요가 맞물리며 환헤지형 상품의 활용도는 유지될 전망",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "AI와 클라우드 투자 확대가 상위 기술주 이익 전망을 계속 지지할 가능성"
+          },
+          {
+            "number": "②",
+            "text": "원화 강세 또는 환율 안정 구간에서는 환헤지형의 성과 안정성이 부각될 수 있음",
+            "highlightText": "성과 안정성"
+          },
+          {
+            "number": "③",
+            "text": "헤지 비용과 미국 금리 방향은 향후 비헤지형 대비 상대 성과의 핵심 변수"
+          }
+        ],
+        "closing": "환율 방향성 부담을 낮추고 미국 대표 대형주에 접근하려는 투자자에게 적합한 선택지",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_01_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국 S&P500",
+            "values": [
+              2.8,
+              7.9,
+              -1.2,
+              16.4,
+              95.2
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              2.6,
+              7.6,
+              -1.4,
+              16.3,
+              98.1
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_01_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          2.84,
+          7.92,
+          -1.18,
+          16.42,
+          2.84,
+          95.2
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_01_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.62
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 7.15
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 6.08
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 3.96
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.75
+          },
+          {
+            "rank": 6,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.43
+          },
+          {
+            "rank": 7,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.06
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.69
+          },
+          {
+            "rank": 9,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.73
+          },
+          {
+            "rank": 10,
+            "name": "BERKSHIRE HATHAWAY",
+            "weightPercent": 1.64
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 37.11,
+        "totalHoldingCount": 505,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_01_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국 S&P500 ETF 리뷰",
+      "payload": {
+        "items": [
+          "미국 대형주 실적 기대와 AI 인프라 투자 확대가 지수 성과를 견인",
+          "NVIDIA, MICROSOFT, APPLE 등 상위 편입 종목이 기술주 중심 상승 흐름을 주도",
+          "환헤지 미시행 구조로 원달러 환율 등락이 단기 성과 변동성을 일부 확대",
+          "S&P500 전반의 업종 분산 효과가 개별 종목 변동성을 완화하며 1개월 수익률이 플러스 전환"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_01_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국 S&P500 ETF 향후 전망",
+      "payload": {
+        "lead": "미국 대형 우량주의 이익 개선 기대가 유지되며 완만한 상승 흐름을 이어갈 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "AI 투자와 클라우드 수요 확대가 대형 기술주의 이익 모멘텀을 지지할 전망"
+          },
+          {
+            "number": "②",
+            "text": "금리 인하 기대가 재부각될 경우 성장주와 경기민감주의 동반 회복 가능성",
+            "highlightText": "금리 인하 기대가 재부각"
+          },
+          {
+            "number": "③",
+            "text": "환율 변동성은 남아 있으나 비헤지 구조가 달러 강세 구간에서 성과에 기여할 수 있음"
+          }
+        ],
+        "closing": "미국 대표기업에 분산 투자하는 구조상 장기 핵심 자산 배분 수단으로 활용 가능",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_02_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국 S&P500",
+            "values": [
+              1.2,
+              8.7,
+              -0.4,
+              17.3,
+              97.5
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              1.0,
+              8.4,
+              -0.6,
+              17.4,
+              100.0
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_02_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          1.18,
+          8.66,
+          -0.42,
+          17.34,
+          4.05,
+          97.46
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_02_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.78
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 7.1
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 5.96
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 4.02
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.79
+          },
+          {
+            "rank": 6,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.51
+          },
+          {
+            "rank": 7,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.09
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.7
+          },
+          {
+            "rank": 9,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.69
+          },
+          {
+            "rank": 10,
+            "name": "BERKSHIRE HATHAWAY",
+            "weightPercent": 1.63
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 37.27,
+        "totalHoldingCount": 505,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_02_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국 S&P500 ETF 리뷰",
+      "payload": {
+        "items": [
+          "미국 물가와 금리 지표 확인 과정에서 성장주 변동성이 확대되었으나 대형주 중심 흐름은 유지",
+          "NVIDIA와 BROADCOM 등 반도체 관련 종목 비중 상승이 포트폴리오 성과를 방어",
+          "APPLE과 TESLA는 수요 우려로 상대적으로 부진했지만 지수 내 업종 분산이 하락 폭을 제한",
+          "비헤지 구조의 환율 효과가 월중 성과 변동성을 키웠으나 누적 수익률은 견조한 수준을 유지"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_02_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국 S&P500 ETF 향후 전망",
+      "payload": {
+        "lead": "실적 시즌 이후 종목별 차별화가 커질 수 있으나 미국 대형주의 이익 체력은 유효한 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "AI 반도체와 클라우드 투자 확대가 상위 기술주 실적 추정치 상향을 이끌 가능성"
+          },
+          {
+            "number": "②",
+            "text": "금리 변동성이 완화되면 S&P500 밸류에이션 부담이 점진적으로 낮아질 전망",
+            "highlightText": "금리 변동성이 완화"
+          },
+          {
+            "number": "③",
+            "text": "소비와 고용 지표 둔화 여부에 따라 경기민감 업종의 단기 등락은 확대될 수 있음"
+          }
+        ],
+        "closing": "상위 대형주의 성장성과 업종 분산을 동시에 활용하는 장기 투자 포지션으로 접근 가능",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_03_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국 S&P500",
+            "values": [
+              6.0,
+              12.0,
+              0.6,
+              19.1,
+              101.1
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              5.7,
+              11.7,
+              0.4,
+              19.2,
+              104.2
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_03_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          5.95,
+          11.97,
+          0.56,
+          19.09,
+          11.97,
+          101.13
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : S&P500 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_03_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 7.93
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 7.05
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 5.84
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 4.04
+          },
+          {
+            "rank": 5,
+            "name": "Meta Platforms",
+            "weightPercent": 2.81
+          },
+          {
+            "rank": 6,
+            "name": "BROADCOM LTD",
+            "weightPercent": 2.59
+          },
+          {
+            "rank": 7,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.11
+          },
+          {
+            "rank": 8,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 1.71
+          },
+          {
+            "rank": 9,
+            "name": "TESLA MOTORS",
+            "weightPercent": 1.67
+          },
+          {
+            "rank": 10,
+            "name": "BERKSHIRE HATHAWAY",
+            "weightPercent": 1.62
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 37.37,
+        "totalHoldingCount": 505,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_03_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국 S&P500 ETF 리뷰",
+      "payload": {
+        "items": [
+          "S&P500 지수가 대형 기술주와 플랫폼 기업 중심으로 반등하며 ETF의 1개월 수익률이 5.95%를 기록",
+          "NVIDIA, MICROSOFT, APPLE이 높은 편입 비중을 유지하며 포트폴리오 핵심 성과 요인으로 작용",
+          "3개월 수익률은 11.97%로 기초지수와 유사한 흐름을 보이며 미국 대표지수 추종 특성이 확인",
+          "환헤지 미시행 구조로 환율 변동 영향은 존재하나 장기 상장후 수익률은 101.13%로 높은 누적 성과를 유지"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_sp500_2026_03_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_sp500",
+        "productName": "Kodex 미국 S&P500 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국 S&P500 ETF 향후 전망",
+      "payload": {
+        "lead": "미국 대표 대형주의 이익 성장과 AI 투자 사이클이 이어지며 중장기 성과 기반은 견조할 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "NVIDIA와 MICROSOFT 중심의 AI 생태계 확장이 상위 편입 종목 이익 전망을 지지"
+          },
+          {
+            "number": "②",
+            "text": "S&P500 내 업종 분산 효과가 특정 테마 쏠림 리스크를 완화하는 역할 기대",
+            "highlightText": "업종 분산 효과"
+          },
+          {
+            "number": "③",
+            "text": "금리와 환율 변동성은 단기 부담이나 미국 대형주의 현금흐름 안정성이 하방을 지지할 전망"
+          }
+        ],
+        "closing": "핵심 미국 주식 익스포저를 확보하려는 투자자에게 장기 분산 투자 수단으로 적합한 후보",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_01_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국나스닥100",
+            "values": [
+              3.1,
+              10.8,
+              0.4,
+              21.2,
+              105.4
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              2.9,
+              10.5,
+              0.3,
+              21.3,
+              108.0
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : NASDAQ 100 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_01_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          3.1,
+          10.82,
+          0.42,
+          21.18,
+          3.1,
+          105.4
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : NASDAQ 100 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_01_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 9.54
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 8.96
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 7.52
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 5.51
+          },
+          {
+            "rank": 5,
+            "name": "BROADCOM LTD",
+            "weightPercent": 5.08
+          },
+          {
+            "rank": 6,
+            "name": "Meta Platforms",
+            "weightPercent": 3.44
+          },
+          {
+            "rank": 7,
+            "name": "NETFLIX",
+            "weightPercent": 2.74
+          },
+          {
+            "rank": 8,
+            "name": "TESLA MOTORS",
+            "weightPercent": 2.82
+          },
+          {
+            "rank": 9,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.57
+          },
+          {
+            "rank": 10,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 2.42
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 50.6,
+        "totalHoldingCount": 102,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_01_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국나스닥100 ETF 리뷰",
+      "payload": {
+        "items": [
+          "미국 기술주 반등과 AI 인프라 투자 기대가 나스닥100 성과를 견인",
+          "NVIDIA, MICROSOFT, APPLE 등 상위 종목의 높은 비중이 월간 수익률 개선에 기여",
+          "비헤지 구조로 환율 변동 영향이 일부 반영되며 원화 기준 성과 변동성이 확대",
+          "반도체와 플랫폼 기업 중심의 성장주 노출이 S&P500 대비 높은 성과 민감도를 보임"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_01_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국나스닥100 ETF 향후 전망",
+      "payload": {
+        "lead": "AI와 클라우드 투자 사이클이 지속되며 기술주 중심의 성과 모멘텀이 이어질 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "AI 반도체 수요와 데이터센터 투자가 나스닥100 상위 종목 실적을 지지할 전망"
+          },
+          {
+            "number": "②",
+            "text": "금리 안정이 확인될 경우 성장주 밸류에이션 부담 완화 기대",
+            "highlightText": "성장주 밸류에이션 부담 완화"
+          },
+          {
+            "number": "③",
+            "text": "상위 종목 집중도가 높아 개별 대형 기술주 실적 발표에 따른 변동성은 관리 필요"
+          }
+        ],
+        "closing": "성장주 익스포저를 확대하려는 투자자에게 적합하나 단기 변동성은 S&P500 대비 높을 수 있음",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_02_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국나스닥100",
+            "values": [
+              2.2,
+              12.9,
+              1.3,
+              22.5,
+              108.6
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              2.1,
+              12.7,
+              1.1,
+              22.7,
+              111.2
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : NASDAQ 100 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_02_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          2.24,
+          12.95,
+          1.28,
+          22.46,
+          5.41,
+          108.62
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : NASDAQ 100 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_02_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 9.72
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 8.89
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 7.42
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 5.59
+          },
+          {
+            "rank": 5,
+            "name": "BROADCOM LTD",
+            "weightPercent": 5.22
+          },
+          {
+            "rank": 6,
+            "name": "Meta Platforms",
+            "weightPercent": 3.48
+          },
+          {
+            "rank": 7,
+            "name": "NETFLIX",
+            "weightPercent": 2.78
+          },
+          {
+            "rank": 8,
+            "name": "TESLA MOTORS",
+            "weightPercent": 2.76
+          },
+          {
+            "rank": 9,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.6
+          },
+          {
+            "rank": 10,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 2.45
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 50.91,
+        "totalHoldingCount": 102,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_02_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국나스닥100 ETF 리뷰",
+      "payload": {
+        "items": [
+          "미국 금리 재평가와 기술주 차익실현으로 월중 변동성은 확대되었으나 누적 성과는 개선",
+          "NVIDIA와 BROADCOM 등 AI 반도체 관련 종목의 비중 상승이 성과 방어에 기여",
+          "APPLE과 TESLA는 수요 우려로 일부 부담을 주었으나 NETFLIX, Meta Platforms가 상대적으로 견조",
+          "나스닥100 특유의 성장주 집중도가 상승 국면에서는 성과를 키우고 조정 국면에서는 변동성을 확대"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_02_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국나스닥100 ETF 향후 전망",
+      "payload": {
+        "lead": "대형 기술주의 실적 가시성이 유지되는 한 나스닥100의 상대 강세 가능성은 남아 있는 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "AI 서비스 확산과 반도체 공급망 투자가 상위 편입 종목의 이익 추정치를 지지"
+          },
+          {
+            "number": "②",
+            "text": "금리 상승 압력이 완화되면 장기 성장주에 대한 할인율 부담이 낮아질 전망",
+            "highlightText": "할인율 부담이 낮아질 전망"
+          },
+          {
+            "number": "③",
+            "text": "상위 10개 종목 비중이 높아 단기적으로는 실적 발표와 규제 뉴스에 민감하게 반응 가능"
+          }
+        ],
+        "closing": "기술 성장주 중심의 공격적 익스포저로 활용하되 분할 매수와 변동성 관리가 필요",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_03_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 미국나스닥100",
+            "values": [
+              6.5,
+              16.7,
+              3.9,
+              25.7,
+              113.7
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              6.2,
+              16.5,
+              3.7,
+              25.8,
+              116.6
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : NASDAQ 100 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_03_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          6.45,
+          16.72,
+          3.86,
+          25.7,
+          16.72,
+          113.7
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : NASDAQ 100 Index",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_03_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "NVIDIA Corp",
+            "weightPercent": 9.92
+          },
+          {
+            "rank": 2,
+            "name": "MICROSOFT",
+            "weightPercent": 8.82
+          },
+          {
+            "rank": 3,
+            "name": "APPLE Inc",
+            "weightPercent": 7.31
+          },
+          {
+            "rank": 4,
+            "name": "Amazon.com Inc",
+            "weightPercent": 5.68
+          },
+          {
+            "rank": 5,
+            "name": "BROADCOM LTD",
+            "weightPercent": 5.36
+          },
+          {
+            "rank": 6,
+            "name": "Meta Platforms",
+            "weightPercent": 3.52
+          },
+          {
+            "rank": 7,
+            "name": "NETFLIX",
+            "weightPercent": 2.83
+          },
+          {
+            "rank": 8,
+            "name": "TESLA MOTORS",
+            "weightPercent": 2.71
+          },
+          {
+            "rank": 9,
+            "name": "ALPHABET INC-CL A",
+            "weightPercent": 2.64
+          },
+          {
+            "rank": 10,
+            "name": "ALPHABET INC-CL C",
+            "weightPercent": 2.48
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 51.27,
+        "totalHoldingCount": 102,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_03_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 미국나스닥100 ETF 리뷰",
+      "payload": {
+        "items": [
+          "나스닥100 ETF는 1개월 6.45%, 3개월 16.72%를 기록하며 성장주 반등을 강하게 반영",
+          "NVIDIA, MICROSOFT, APPLE, Amazon.com 등 상위 기술주가 높은 비중을 유지하며 성과를 견인",
+          "102개 종목으로 구성되지만 Top 10 비중이 51.27%로 높아 대형 기술주 영향력이 크게 나타남",
+          "NASDAQ 100 Index와 유사한 흐름을 보이며 상장후 수익률 113.70%의 높은 누적 성과를 기록"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_us_nasdaq100_2026_03_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_us_nasdaq100",
+        "productName": "Kodex 미국나스닥100 ETF",
+        "distributorName": "국민은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "source_numeric_with_synthetic_commentary"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 미국나스닥100 ETF 향후 전망",
+      "payload": {
+        "lead": "AI, 클라우드, 플랫폼 기업 중심의 성장 사이클이 유지되며 중장기 성과 기대는 유효한 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "NVIDIA와 BROADCOM을 중심으로 한 AI 반도체 수요가 지수 성과의 핵심 동력으로 작용할 전망"
+          },
+          {
+            "number": "②",
+            "text": "대형 플랫폼 기업의 광고, 클라우드, 구독 매출 회복이 이익 안정성을 높일 가능성",
+            "highlightText": "이익 안정성"
+          },
+          {
+            "number": "③",
+            "text": "높은 성장주 집중도는 금리 상승 또는 규제 이슈 발생 시 단기 조정 폭을 키울 수 있음"
+          }
+        ],
+        "closing": "공격적 성장주 노출을 원하는 투자자에게 적합하지만 S&P500 대비 변동성 관리가 중요",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_01_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 코리아배당성장채권혼합",
+            "values": [
+              3.2,
+              8.4,
+              11.8,
+              22.4,
+              60.2
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              2.9,
+              7.8,
+              11.1,
+              21.7,
+              50.4
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : 배당성장 채권혼합지수",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_01_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          3.24,
+          8.41,
+          11.83,
+          22.36,
+          3.24,
+          60.18
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : 배당성장 채권혼합지수",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_01_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "국고02250-2806(25-4)",
+            "weightPercent": 20.52
+          },
+          {
+            "rank": 2,
+            "name": "KODEX 국고채3년",
+            "weightPercent": 17.44
+          },
+          {
+            "rank": 3,
+            "name": "KODEX 코리아배당성장",
+            "weightPercent": 16.86
+          },
+          {
+            "rank": 4,
+            "name": "국고02500-3009(25-8)",
+            "weightPercent": 16.01
+          },
+          {
+            "rank": 5,
+            "name": "국고02750-2812(25-10)",
+            "weightPercent": 15.21
+          },
+          {
+            "rank": 6,
+            "name": "현대차",
+            "weightPercent": 0.76
+          },
+          {
+            "rank": 7,
+            "name": "키움증권",
+            "weightPercent": 0.67
+          },
+          {
+            "rank": 8,
+            "name": "DB손해보험",
+            "weightPercent": 0.63
+          },
+          {
+            "rank": 9,
+            "name": "NH투자증권",
+            "weightPercent": 0.61
+          },
+          {
+            "rank": 10,
+            "name": "기아",
+            "weightPercent": 0.59
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 89.3,
+        "totalHoldingCount": 58,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_01_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 코리아배당성장채권혼합 ETF 리뷰",
+      "payload": {
+        "items": [
+          "국고채 금리가 안정화되며 채권 비중이 월간 성과에 긍정적으로 기여",
+          "현대차, 기아 등 완성차 종목과 주요 금융주의 배당 기대가 확대되며 주식 편입 종목 수익률이 개선",
+          "채권 70% 수준의 방어적 배분과 배당성장주 반등이 맞물리며 1개월 수익률이 3.2% 수준으로 회복",
+          "보험주와 증권주는 주주환원 기대가 이어지며 포트폴리오의 안정적인 인컴 성격을 보강"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_01_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-01",
+        "asOf": "2026.01.31",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 코리아배당성장채권혼합 ETF 향후 전망",
+      "payload": {
+        "lead": "금리 안정과 배당성장주 강세가 이어질 경우 완만한 상승 흐름을 이어갈 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "국고채 금리는 기준금리 인하 기대와 수급 안정으로 가격 회복세 지속 전망"
+          },
+          {
+            "number": "②",
+            "text": "자동차와 금융 업종의 주주환원 정책이 강화되며 배당성장주 저가 매수세 유입 기대",
+            "highlightText": "주주환원 정책이 강화"
+          },
+          {
+            "number": "③",
+            "text": "현대차, 기아, 삼성생명 등 고배당 성향 종목의 이익 안정성이 포트폴리오 하방을 지지"
+          }
+        ],
+        "closing": "글로벌 경기 둔화 우려가 남아 있으나, 채권과 배당성장주의 혼합 구조가 변동성 완화에 유효한 대안",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_02_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 코리아배당성장채권혼합",
+            "values": [
+              -1.4,
+              7.9,
+              10.4,
+              20.8,
+              58.0
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              -1.6,
+              7.2,
+              9.9,
+              20.2,
+              48.3
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : 배당성장 채권혼합지수",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_02_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          -1.36,
+          7.86,
+          10.42,
+          20.77,
+          1.84,
+          58.02
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : 배당성장 채권혼합지수",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_02_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "국고02250-2806(25-4)",
+            "weightPercent": 20.68
+          },
+          {
+            "rank": 2,
+            "name": "KODEX 국고채3년",
+            "weightPercent": 17.33
+          },
+          {
+            "rank": 3,
+            "name": "KODEX 코리아배당성장",
+            "weightPercent": 16.98
+          },
+          {
+            "rank": 4,
+            "name": "국고02500-3009(25-8)",
+            "weightPercent": 16.2
+          },
+          {
+            "rank": 5,
+            "name": "국고02750-2812(25-10)",
+            "weightPercent": 15.27
+          },
+          {
+            "rank": 6,
+            "name": "현대차",
+            "weightPercent": 0.75
+          },
+          {
+            "rank": 7,
+            "name": "키움증권",
+            "weightPercent": 0.64
+          },
+          {
+            "rank": 8,
+            "name": "DB손해보험",
+            "weightPercent": 0.61
+          },
+          {
+            "rank": 9,
+            "name": "NH투자증권",
+            "weightPercent": 0.57
+          },
+          {
+            "rank": 10,
+            "name": "기아",
+            "weightPercent": 0.54
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 89.57,
+        "totalHoldingCount": 58,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_02_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 코리아배당성장채권혼합 ETF 리뷰",
+      "payload": {
+        "items": [
+          "국고채 금리가 재차 등락하며 채권 가격 변동성이 확대되어 월간 성과에 부담으로 작용",
+          "현대차, 기아 등 완성차 종목은 통상 환경 불확실성으로 조정을 받았고, 증권주는 거래대금 둔화 우려로 수익률이 약세",
+          "주식 편입 종목 조정에도 채권 중심 배분이 손실 폭을 제한하며 1개월 수익률 하락을 -1.4% 수준으로 방어",
+          "보험주는 배당 안정성이 부각되며 상대적으로 견조한 흐름을 유지"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_02_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-02",
+        "asOf": "2026.02.28",
+        "sampleDataType": "synthetic"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 코리아배당성장채권혼합 ETF 향후 전망",
+      "payload": {
+        "lead": "금리 변동성이 남아 있으나 채권 비중의 방어력과 배당주의 주주환원 기대가 완만한 회복을 지지할 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "국고채 금리는 물가와 환율 지표 확인 후 점진적으로 안정될 가능성"
+          },
+          {
+            "number": "②",
+            "text": "자동차와 금융 업종은 단기 조정 이후 배당 매력이 재부각되는 구간 진입 기대",
+            "highlightText": "배당 매력이 재부각"
+          },
+          {
+            "number": "③",
+            "text": "보험 및 증권주는 주주환원 발표가 구체화될수록 포트폴리오 성과 기여도가 확대될 전망"
+          }
+        ],
+        "closing": "매크로 불확실성은 이어지지만 채권 방어력과 고배당 종목의 인컴 기여를 함께 활용하는 전략이 유효",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_03_performance_chart",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "template_source"
+      },
+      "componentKey": "performance_chart",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.chartSeries",
+      "renderType": "chart",
+      "title": "ETF 성과 추이",
+      "payload": {
+        "unit": "%",
+        "labels": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "상장이후"
+        ],
+        "series": [
+          {
+            "name": "Kodex 코리아배당성장채권혼합",
+            "values": [
+              -4.9,
+              6.7,
+              9.6,
+              19.7,
+              55.8
+            ]
+          },
+          {
+            "name": "BM",
+            "values": [
+              -5.2,
+              6.4,
+              9.2,
+              19.5,
+              45.7
+            ]
+          }
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : 배당성장 채권혼합지수",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_03_performance_summary",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "template_source"
+      },
+      "componentKey": "performance_summary",
+      "sectionKey": "performanceTrend",
+      "sourcePath": "monthlySnapshots[].performanceTrend.summaryValues",
+      "renderType": "table",
+      "title": "ETF 성과 추이 요약",
+      "payload": {
+        "unit": "%",
+        "columns": [
+          "1개월",
+          "3개월",
+          "6개월",
+          "1년",
+          "연초후",
+          "상장후"
+        ],
+        "values": [
+          -4.89,
+          6.65,
+          9.55,
+          19.69,
+          6.65,
+          55.81
+        ],
+        "noteTemplates": [
+          "자료 : 삼성자산운용 {asOfKo} 기준, 단위 : %",
+          "BM : 배당성장 채권혼합지수",
+          "(ETF) 분배금이 재투자된 수정기준가 활용, 세전 수익률 기준",
+          "과거수익률이 미래성과를 보장하지 않습니다."
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_03_top_holdings",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "template_source"
+      },
+      "componentKey": "top_holdings",
+      "sectionKey": "topHoldings",
+      "sourcePath": "monthlySnapshots[].topHoldings",
+      "renderType": "table",
+      "title": "ETF Top 10 보유내역",
+      "payload": {
+        "columns": [
+          "No.",
+          "종목명",
+          "보유비중(%)"
+        ],
+        "rows": [
+          {
+            "rank": 1,
+            "name": "국고02250-2806(25-4)",
+            "weightPercent": 20.84
+          },
+          {
+            "rank": 2,
+            "name": "KODEX 국고채3년",
+            "weightPercent": 17.29
+          },
+          {
+            "rank": 3,
+            "name": "KODEX 코리아배당성장",
+            "weightPercent": 17.12
+          },
+          {
+            "rank": 4,
+            "name": "국고02500-3009(25-8)",
+            "weightPercent": 16.35
+          },
+          {
+            "rank": 5,
+            "name": "국고02750-2812(25-10)",
+            "weightPercent": 15.32
+          },
+          {
+            "rank": 6,
+            "name": "현대차",
+            "weightPercent": 0.74
+          },
+          {
+            "rank": 7,
+            "name": "키움증권",
+            "weightPercent": 0.61
+          },
+          {
+            "rank": 8,
+            "name": "DB손해보험",
+            "weightPercent": 0.59
+          },
+          {
+            "rank": 9,
+            "name": "NH투자증권",
+            "weightPercent": 0.57
+          },
+          {
+            "rank": 10,
+            "name": "기아",
+            "weightPercent": 0.57
+          }
+        ],
+        "totalLabel": "합계",
+        "top10TotalWeightPercent": 90.0,
+        "totalHoldingCount": 58,
+        "captionTemplates": [
+          "총 보유종목 수: {totalHoldingCount}개",
+          "자료 : 삼성자산운용, {asOfKo} 기준"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_03_review",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "template_source"
+      },
+      "componentKey": "review",
+      "sectionKey": "review",
+      "sourcePath": "monthlySnapshots[].review.items",
+      "renderType": "list",
+      "title": "Kodex 코리아배당성장채권혼합 ETF 리뷰",
+      "payload": {
+        "items": [
+          "국고채권의 금리가 지정학적 리스크와 국제 유가 상승에 따른 인플레이션 우려로 상승 가격 하락 부정적 기여",
+          "현대차, 기아 등 완성차 종목이 글로벌 통상 환경 불확실성으로 조정을 받았고, 키움증권, 삼성증권 등 금융주 또한 금리 변동성 확대와 거래대금 감소 우려에 수익률이 둔화",
+          "급락세를 보인 주식 대비 70%의 채권 비중이 완충 작용을 하며 전체 손실 폭을 -4.9% 수준으로 방어",
+          "보험주들이 상대적으로 견조한 배당 성향을 유지하며 하락장에서도 상대적인 주가 방어력을 시현"
+        ]
+      }
+    },
+    {
+      "dataSourceId": "ds_data_kodex_korea_dividend_growth_bond_mixed_2026_03_outlook",
+      "datasetRef": {
+        "datasetId": "data_kodex_korea_dividend_growth_bond_mixed",
+        "productName": "Kodex 코리아배당성장채권혼합 ETF",
+        "distributorName": "우리은행"
+      },
+      "snapshotRef": {
+        "monthId": "2026-03",
+        "asOf": "2026.03.31",
+        "sampleDataType": "template_source"
+      },
+      "componentKey": "outlook",
+      "sectionKey": "outlook",
+      "sourcePath": "monthlySnapshots[].outlook",
+      "renderType": "article",
+      "title": "Kodex 코리아배당성장채권혼합 ETF 향후 전망",
+      "payload": {
+        "lead": "배당성장주의 가치 부각과 채권 가격 안정화가 맞물리며 완만한 회복세를 보일 것으로 판단",
+        "numberedItems": [
+          {
+            "number": "①",
+            "text": "국고채 금리는 오버슈팅 구간을 지나 점진적으로 안정화되어 가격 반등 전망"
+          },
+          {
+            "number": "②",
+            "text": "NH투자증권, 대신증권 등 주요 종목의 주주환원 정책이 구체화되는 시기로 저가 매수세 유입 기대",
+            "highlightText": "주주환원 정책이 구체화되는 시기"
+          },
+          {
+            "number": "③",
+            "text": "현대차, 삼성생명 등의 자사주 소각 및 배당 확대 기조로 상방 압력은 여전히 유효"
+          }
+        ],
+        "closing": "글로벌 경기 둔화 우려와 매크로 불확실성이 지속되는 구간에서 동 ETF는 변동성을 낮추며 꾸준한 인컴 수익을 추구하는 안정적인 대안",
+        "numberLabels": [
+          "①",
+          "②",
+          "③"
+        ]
+      }
+    }
+  ]
+}
