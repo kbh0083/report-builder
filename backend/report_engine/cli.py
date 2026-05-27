@@ -1,6 +1,8 @@
 import argparse
+import json
 from collections.abc import Sequence
 
+from .logging_flow import event_to_stdout_line, run_with_artifact_logging
 from .models import ReportJobRequest
 
 
@@ -30,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     if args.command == "run":
-        ReportJobRequest(
+        request = ReportJobRequest(
             datasetId=args.dataset_id,
             templateId=args.template_id,
             monthId=args.month_id,
@@ -40,6 +42,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             maxIterations=args.max_iterations,
             outputDir=args.output_dir,
         )
-        parser.exit(2, "report_engine run is implemented in later tasks beyond Task 5 scope.\n")
+        try:
+            print(event_to_stdout_line(run_with_artifact_logging(request)))
+            return 0
+        except Exception as exc:
+            print(json.dumps({"event": "job.failed", "detail": str(exc)}, ensure_ascii=False))
+            return 1
     parser.print_help()
     return 0

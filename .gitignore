@@ -5,6 +5,7 @@ __pycache__/
 backend/.venv/
 backend/.env
 backend/.pytest_cache/
+backend/log/
 .pytest_cache/
 
 runs/

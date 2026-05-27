@@ -1,6 +1,7 @@
 # ETF 데이터 및 Stage 2 컴포넌트 데이터 상세 설명서
 
 - 대상 파일: `backend/data/etf_data.json`
+- 템플릿 catalog: `backend/data/report_templates.json`
 - Stage 2 입력 catalog: `backend/data/etf_stage2_component_sources.json`
 - Stage 2 출력 sample: `backend/data/etf_stage2_components.sample.json`
 - 병합 스키마: `poc.etfMonthlyIssueReport.bundle.v1`
@@ -25,14 +26,42 @@
 | 기준 데이터 위치 | `datasets[].baseData` |
 | 월별 변동 데이터 위치 | `datasets[].monthlySnapshots[]` |
 
+### 1.1 CLI 입력 변수 값 목록
+
+`report_engine run`은 `dataset-id`, `template-id`, `month-id`를 독립 입력으로 받는다. 데이터셋과 템플릿은 독립 선택 단위이므로 아래 `dataset-id` 4개는 아래 `template-id` 2개와 모두 조합 가능하다.
+
+#### dataset-id
+
+| dataset-id | 상품명 | 기본 판매사 | 기존 원천 template.id | 지원 month-id |
+| --- | --- | --- | --- | --- |
+| `data_kodex_us_sp500_h` | Kodex 미국 S&P500(H) ETF | 국민은행 | `kb_kodex_monthly_guidebook_449180` | `2026-01`, `2026-02`, `2026-03` |
+| `data_kodex_us_sp500` | Kodex 미국 S&P500 ETF | 국민은행 | `kb_kodex_monthly_guidebook_379800` | `2026-01`, `2026-02`, `2026-03` |
+| `data_kodex_us_nasdaq100` | Kodex 미국나스닥100 ETF | 국민은행 | `kb_kodex_monthly_guidebook_379810` | `2026-01`, `2026-02`, `2026-03` |
+| `data_kodex_korea_dividend_growth_bond_mixed` | Kodex 코리아배당성장채권혼합 ETF | 우리은행 | `woori_kodex_monthly_issue_report` | `2026-01`, `2026-02`, `2026-03` |
+
+#### template-id
+
+| template-id | 템플릿명 | sourceHtml | previewImage | page |
+| --- | --- | --- | --- | --- |
+| `tpl_kb_monthly_guidebook` | 국민은행 월간 가이드북 | `document/report/우리은행_월간_리포트.html` | `document/report/국민은행_월간_리포트.png` | A4 portrait |
+| `tpl_woori_monthly_report` | 우리은행 월간 리포트 | `document/report/우리은행_월간_리포트.html` | `document/report/우리은행_월간_리포트.png` | A4 portrait |
+
+#### month-id
+
+| month-id | 의미 |
+| --- | --- |
+| `2026-01` | 2026년 1월 스냅샷 |
+| `2026-02` | 2026년 2월 스냅샷 |
+| `2026-03` | 2026년 3월 스냅샷 |
+
 ## 2. 원본 파일 목록
 
-| 순번 | sourceFiles[] | 연결 dataset template.id |
-| --- | --- | --- |
-| 1 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500_H.dataset.sample.json | kb_kodex_monthly_guidebook_449180 |
-| 2 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500.dataset.sample.json | kb_kodex_monthly_guidebook_379800 |
-| 3 | backend/data/국민은행_월간_가이드북_KODEX_미국나스닥100.dataset.sample.json | kb_kodex_monthly_guidebook_379810 |
-| 4 | backend/data/우리은행_월간_리포트.dataset.sample.json | woori_kodex_monthly_issue_report |
+| 순번 | sourceFiles[] | 연결 dataset-id | 기존 원천 template.id |
+| --- | --- | --- | --- |
+| 1 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500_H.dataset.sample.json | `data_kodex_us_sp500_h` | `kb_kodex_monthly_guidebook_449180` |
+| 2 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500.dataset.sample.json | `data_kodex_us_sp500` | `kb_kodex_monthly_guidebook_379800` |
+| 3 | backend/data/국민은행_월간_가이드북_KODEX_미국나스닥100.dataset.sample.json | `data_kodex_us_nasdaq100` | `kb_kodex_monthly_guidebook_379810` |
+| 4 | backend/data/우리은행_월간_리포트.dataset.sample.json | `data_kodex_korea_dividend_growth_bond_mixed` | `woori_kodex_monthly_issue_report` |
 
 ## 3. 데이터 출처 성격
 
@@ -59,13 +88,7 @@
 | `$.datasets` | Dataset[] | required | ETF별 월간 리포트 데이터셋 배열 |
 | `$.datasets[]` | object | required | 단일 ETF 월간 리포트 데이터셋 객체 |
 | `$.datasets[].schemaVersion` | string | required | 단일 ETF 데이터셋 스키마 버전. 현재 `poc.etfMonthlyIssueReport.dataset.v1` |
-| `$.datasets[].template` | object | required | 렌더링/바인딩 대상 템플릿 메타 정보 |
-| `$.datasets[].template.id` | string | required | 템플릿/데이터셋 식별자 |
-| `$.datasets[].template.sourceHtml` | string | required | 바인딩 대상 HTML 템플릿 경로 |
-| `$.datasets[].template.previewImage` | string | required | 템플릿 preview 이미지 경로 |
-| `$.datasets[].template.page` | object | required | 출력 페이지 설정 |
-| `$.datasets[].template.page.size` | string | required | 페이지 크기. 현재 `A4` |
-| `$.datasets[].template.page.orientation` | string | required | 페이지 방향. 현재 `portrait` |
+| `$.datasets[].datasetId` | string | required | CLI `--dataset-id`로 사용하는 데이터셋 식별자 |
 | `$.datasets[].baseData` | object | required | ETF/판매사/섹션 정의 등 월별로 변하지 않는 기준 데이터 |
 | `$.datasets[].baseData.issuer` | object | required | 발행사/운용사 정보 |
 | `$.datasets[].baseData.issuer.brandName` | string | required | 브랜드명 |
@@ -175,21 +198,21 @@
 
 ## 6. ETF 데이터셋 목록
 
-| 순번 | template.id | 판매사 | 분류 | 상품명 | BM | 월수 | source file |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | kb_kodex_monthly_guidebook_449180 | 국민은행 | 월간 가이드북 | Kodex 미국 S&P500(H) ETF | S&P500 Index | 3 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500_H.dataset.sample.json |
-| 2 | kb_kodex_monthly_guidebook_379800 | 국민은행 | 월간 가이드북 | Kodex 미국 S&P500 ETF | S&P500 Index | 3 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500.dataset.sample.json |
-| 3 | kb_kodex_monthly_guidebook_379810 | 국민은행 | 월간 가이드북 | Kodex 미국나스닥100 ETF | NASDAQ 100 Index | 3 | backend/data/국민은행_월간_가이드북_KODEX_미국나스닥100.dataset.sample.json |
-| 4 | woori_kodex_monthly_issue_report | 우리은행 | 판매사 사내한 | Kodex 코리아배당성장채권혼합 ETF | 배당성장 채권혼합지수 | 3 | backend/data/우리은행_월간_리포트.dataset.sample.json |
+| 순번 | datasetId | 기존 원천 template.id | 판매사 | 분류 | 상품명 | BM | 월수 | source file |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `data_kodex_us_sp500_h` | `kb_kodex_monthly_guidebook_449180` | 국민은행 | 월간 가이드북 | Kodex 미국 S&P500(H) ETF | S&P500 Index | 3 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500_H.dataset.sample.json |
+| 2 | `data_kodex_us_sp500` | `kb_kodex_monthly_guidebook_379800` | 국민은행 | 월간 가이드북 | Kodex 미국 S&P500 ETF | S&P500 Index | 3 | backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500.dataset.sample.json |
+| 3 | `data_kodex_us_nasdaq100` | `kb_kodex_monthly_guidebook_379810` | 국민은행 | 월간 가이드북 | Kodex 미국나스닥100 ETF | NASDAQ 100 Index | 3 | backend/data/국민은행_월간_가이드북_KODEX_미국나스닥100.dataset.sample.json |
+| 4 | `data_kodex_korea_dividend_growth_bond_mixed` | `woori_kodex_monthly_issue_report` | 우리은행 | 판매사 사내한 | Kodex 코리아배당성장채권혼합 ETF | 배당성장 채권혼합지수 | 3 | backend/data/우리은행_월간_리포트.dataset.sample.json |
 
 ## 7. 기준 데이터 상세
 
-| dataset | template.id | sourceHtml | previewImage | page | brandName | companyNameKo | companyNameEn | teamName | contactEmail | distributorName | classificationLabel | brandPrefix | fundName | productName | reportTitleSuffix | benchmarkName | primary | chartBlue | benchmarkGray | tableHeaderBlue | ruleGray | paper | layout.pageSize | layout.columns | layout.mainSections |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| D1: Kodex 미국 S&P500(H) ETF | kb_kodex_monthly_guidebook_449180 | document/report/우리은행_월간_리포트.html | document/report/국민은행_월간_리포트.png | A4 portrait | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 국민은행 | 월간 가이드북 | Kodex | 미국 S&P500(H) | Kodex 미국 S&P500(H) ETF | 월간 가이드북 | S&P500 Index | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
-| D2: Kodex 미국 S&P500 ETF | kb_kodex_monthly_guidebook_379800 | document/report/우리은행_월간_리포트.html | document/report/국민은행_월간_리포트.png | A4 portrait | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 국민은행 | 월간 가이드북 | Kodex | 미국 S&P500 | Kodex 미국 S&P500 ETF | 월간 가이드북 | S&P500 Index | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
-| D3: Kodex 미국나스닥100 ETF | kb_kodex_monthly_guidebook_379810 | document/report/우리은행_월간_리포트.html | document/report/국민은행_월간_리포트.png | A4 portrait | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 국민은행 | 월간 가이드북 | Kodex | 미국나스닥100 | Kodex 미국나스닥100 ETF | 월간 가이드북 | NASDAQ 100 Index | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
-| D4: Kodex 코리아배당성장채권혼합 ETF | woori_kodex_monthly_issue_report | document/report/우리은행_월간_리포트.html | document/report/우리은행_월간_리포트.png | A4 portrait | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 우리은행 | 판매사 사내한 | Kodex | 코리아배당성장채권혼합 | Kodex 코리아배당성장채권혼합 ETF | 이슈 리포트 | 배당성장 채권혼합지수 | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
+| dataset | datasetId | 기존 원천 template.id | brandName | companyNameKo | companyNameEn | teamName | contactEmail | distributorName | classificationLabel | brandPrefix | fundName | productName | reportTitleSuffix | benchmarkName | primary | chartBlue | benchmarkGray | tableHeaderBlue | ruleGray | paper | layout.pageSize | layout.columns | layout.mainSections |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| D1: Kodex 미국 S&P500(H) ETF | `data_kodex_us_sp500_h` | `kb_kodex_monthly_guidebook_449180` | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 국민은행 | 월간 가이드북 | Kodex | 미국 S&P500(H) | Kodex 미국 S&P500(H) ETF | 월간 가이드북 | S&P500 Index | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
+| D2: Kodex 미국 S&P500 ETF | `data_kodex_us_sp500` | `kb_kodex_monthly_guidebook_379800` | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 국민은행 | 월간 가이드북 | Kodex | 미국 S&P500 | Kodex 미국 S&P500 ETF | 월간 가이드북 | S&P500 Index | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
+| D3: Kodex 미국나스닥100 ETF | `data_kodex_us_nasdaq100` | `kb_kodex_monthly_guidebook_379810` | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 국민은행 | 월간 가이드북 | Kodex | 미국나스닥100 | Kodex 미국나스닥100 ETF | 월간 가이드북 | NASDAQ 100 Index | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
+| D4: Kodex 코리아배당성장채권혼합 ETF | `data_kodex_korea_dividend_growth_bond_mixed` | `woori_kodex_monthly_issue_report` | Kodex | 삼성자산운용 | Samsung Asset Management | 삼성자산운용 연금마케팅팀 | pension.fund@samsung.com | 우리은행 | 판매사 사내한 | Kodex | 코리아배당성장채권혼합 | Kodex 코리아배당성장채권혼합 ETF | 이슈 리포트 | 배당성장 채권혼합지수 | #0258ff | #1967f2 | #8e8e8e | #2d66f3 | #c4c4c4 | #ffffff | A4 portrait | 2 | performanceTrend, topHoldings, review, outlook |
 
 ## 8. 섹션 정의 상세
 
@@ -662,6 +685,7 @@
 | $.datasets[].monthlySnapshots[].topHoldings.rows[].weightPercent |
 | $.datasets[].monthlySnapshots[].topHoldings.top10TotalWeightPercent |
 | $.datasets[].monthlySnapshots[].topHoldings.totalHoldingCount |
+| $.datasets[].datasetId |
 | $.datasets[].schemaVersion |
 | $.datasets[].styleCandidates |
 | $.datasets[].styleCandidates.layout |
@@ -676,13 +700,6 @@
 | $.datasets[].styleCandidates.theme.primary |
 | $.datasets[].styleCandidates.theme.ruleGray |
 | $.datasets[].styleCandidates.theme.tableHeaderBlue |
-| $.datasets[].template |
-| $.datasets[].template.id |
-| $.datasets[].template.page |
-| $.datasets[].template.page.orientation |
-| $.datasets[].template.page.size |
-| $.datasets[].template.previewImage |
-| $.datasets[].template.sourceHtml |
 | $.schemaVersion |
 | $.sourceFiles |
 | $.sourceFiles[] |
@@ -729,9 +746,9 @@
 | `$.componentKeys[]` | string | required | 단일 componentKey |
 | `$.componentSources` | ComponentSource[] | required | Stage 2 LLM 호출 입력 단위 배열 |
 | `$.componentSources[]` | object | required | 단일 Stage 2 입력 데이터 소스 |
-| `$.componentSources[].dataSourceId` | string | required | `ds_{templateId}_{monthId}_{componentKey}` 규칙의 안정 식별자 |
+| `$.componentSources[].dataSourceId` | string | required | `ds_{datasetId}_{monthId}_{componentKey}` 규칙의 안정 식별자 |
 | `$.componentSources[].datasetRef` | object | required | ETF dataset 참조 정보 |
-| `$.componentSources[].datasetRef.templateId` | string | required | 원천 dataset의 `template.id` |
+| `$.componentSources[].datasetRef.datasetId` | string | required | 원천 dataset의 `datasetId` |
 | `$.componentSources[].datasetRef.productName` | string | required | ETF 상품명 |
 | `$.componentSources[].datasetRef.distributorName` | string | required | 판매사명 |
 | `$.componentSources[].snapshotRef` | object | required | 월별 snapshot 참조 정보 |
@@ -791,7 +808,10 @@
 | `$.componentCount` | number | required | stage2Components 총 개수. 현재 60 |
 | `$.stage2Components` | Stage2Component[] | required | Stage 2 출력 컴포넌트 배열 |
 | `$.stage2Components[]` | object | required | 단일 Stage 2 출력 컴포넌트 |
-| `$.stage2Components[].componentId` | string | required | `comp_{templateId}_{monthId}_{componentKey}` 규칙의 안정 식별자 |
+| `$.stage2Components[].componentId` | string | required | `comp_{datasetId}_{monthId}_{componentKey}` 규칙의 안정 식별자 |
+| `$.stage2Components[].componentKey` | string | required | 생성된 컴포넌트 종류 |
+| `$.stage2Components[].datasetId` | string | required | 원천 ETF dataset 식별자 |
+| `$.stage2Components[].monthId` | string | required | 월 식별자 |
 | `$.stage2Components[].dataSourceId` | string | required | 원천 componentSource의 `dataSourceId` |
 | `$.stage2Components[].renderType` | string | required | `chart`, `table`, `list`, `article` 중 하나 |
 | `$.stage2Components[].html` | string | required | CSS/inline style 없는 무스타일 HTML fragment |
@@ -813,7 +833,7 @@
 | 규칙 | 내용 |
 | --- | --- |
 | `componentId` 생성 | `dataSourceId`의 `ds_` prefix를 `comp_`로 바꾼다. |
-| `dataSourceId` 생성 | `ds_{templateId}_{monthId}_{componentKey}` 형식이다. `monthId`의 하이픈은 `_`로 치환한다. |
+| `dataSourceId` 생성 | `ds_{datasetId}_{monthId}_{componentKey}` 형식이다. `monthId`의 하이픈은 `_`로 치환한다. |
 | HTML 스타일 | Stage 2 HTML에는 `<style`, `style=`, `class=`를 넣지 않는다. |
 | `styled` | 모든 `stage2Components[].styled`는 `false`이다. |
 | `chartSpec` | `renderType=chart`인 `performance_chart`만 object이고, 나머지는 `null`이다. |
@@ -874,8 +894,8 @@ Stage 3는 선택된 ETF/month 조합의 Stage 2 컴포넌트 5개와 템플릿 
 | $.componentSources[].dataSourceId |
 | $.componentSources[].datasetRef |
 | $.componentSources[].datasetRef.distributorName |
+| $.componentSources[].datasetRef.datasetId |
 | $.componentSources[].datasetRef.productName |
-| $.componentSources[].datasetRef.templateId |
 | $.componentSources[].payload |
 | $.componentSources[].payload.captionTemplates |
 | $.componentSources[].payload.captionTemplates[] |
@@ -947,8 +967,11 @@ Stage 3는 선택된 ETF/month 조합의 Stage 2 컴포넌트 5개와 템플릿 
 | $.stage2Components[].chartSpec.series[].values[] |
 | $.stage2Components[].chartSpec.type |
 | $.stage2Components[].chartSpec.unit |
+| $.stage2Components[].componentKey |
 | $.stage2Components[].componentId |
 | $.stage2Components[].dataSourceId |
+| $.stage2Components[].datasetId |
 | $.stage2Components[].html |
+| $.stage2Components[].monthId |
 | $.stage2Components[].renderType |
 | $.stage2Components[].styled |

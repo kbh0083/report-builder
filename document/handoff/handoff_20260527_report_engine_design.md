@@ -9,7 +9,7 @@
 - 이번 세션의 범위는 구현 코드 작성이 아니라 PoC 리포트 엔진 설계 문서 작성, 관련 데이터/문서 갱신, 검수였다.
 - 리포트 엔진은 현재 backend 중심 파이프라인으로 설계했다.
 - frontend 폴더는 존재하지만 아직 구현 파일이 없으므로, frontend 전용 설계서는 frontend 구현 착수 시 별도 작성하는 방향으로 결정했다.
-- 워크스페이스는 현재 `.git` 저장소가 아니므로 다음 세션에서는 파일 존재와 내용 기준으로 상태를 확인해야 한다.
+- 워크스페이스는 현재 Git 저장소로 연결되어 있으므로 다음 세션에서는 브랜치, 원격, 작업트리 변경사항을 함께 확인해야 한다.
 
 ## 2. 완료 산출물
 
@@ -72,12 +72,19 @@ backend는 `backend/.env`의 Novita AI OpenAI-compatible API 설정을 사용한
 
 ### 5.1 기준 데이터
 
-| 데이터셋 | template id | sourceHtml | previewImage |
+현재 CLI 요청 모델은 `datasetId`, `templateId`, `monthId`를 독립 입력으로 받는다. 아래 표의 `기존 원천 template.id`는 병합 전 source dataset의 legacy 식별자이며, CLI의 `--template-id` 값이 아니다.
+
+| datasetId | 데이터셋 | 기존 원천 template.id | 지원 monthId |
 |---|---|---|---|
-| 국민은행 Kodex 미국 S&P500(H) ETF | `kb_kodex_monthly_guidebook_449180` | `document/report/우리은행_월간_리포트.html` | `document/report/국민은행_월간_리포트.png` |
-| 국민은행 Kodex 미국 S&P500 ETF | `kb_kodex_monthly_guidebook_379800` | `document/report/우리은행_월간_리포트.html` | `document/report/국민은행_월간_리포트.png` |
-| 국민은행 Kodex 미국나스닥100 ETF | `kb_kodex_monthly_guidebook_379810` | `document/report/우리은행_월간_리포트.html` | `document/report/국민은행_월간_리포트.png` |
-| 우리은행 Kodex 코리아배당성장채권혼합 ETF | `woori_kodex_monthly_issue_report` | `document/report/우리은행_월간_리포트.html` | `document/report/우리은행_월간_리포트.png` |
+| `data_kodex_us_sp500_h` | 국민은행 Kodex 미국 S&P500(H) ETF | `kb_kodex_monthly_guidebook_449180` | `2026-01`, `2026-02`, `2026-03` |
+| `data_kodex_us_sp500` | 국민은행 Kodex 미국 S&P500 ETF | `kb_kodex_monthly_guidebook_379800` | `2026-01`, `2026-02`, `2026-03` |
+| `data_kodex_us_nasdaq100` | 국민은행 Kodex 미국나스닥100 ETF | `kb_kodex_monthly_guidebook_379810` | `2026-01`, `2026-02`, `2026-03` |
+| `data_kodex_korea_dividend_growth_bond_mixed` | 우리은행 Kodex 코리아배당성장채권혼합 ETF | `woori_kodex_monthly_issue_report` | `2026-01`, `2026-02`, `2026-03` |
+
+| templateId | 템플릿 | sourceHtml | previewImage |
+|---|---|---|---|
+| `tpl_kb_monthly_guidebook` | 국민은행 월간 가이드북 | `document/report/우리은행_월간_리포트.html` | `document/report/국민은행_월간_리포트.png` |
+| `tpl_woori_monthly_report` | 우리은행 월간 리포트 | `document/report/우리은행_월간_리포트.html` | `document/report/우리은행_월간_리포트.png` |
 
 ### 5.2 수정된 데이터 파일
 
