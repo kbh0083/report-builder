@@ -1,5 +1,34 @@
 # ETF 데이터 및 Stage 2 컴포넌트 데이터 상세 설명서
 
+## 0. 데이터 JSON 파일 역할 맵
+
+`backend/data` 폴더에는 리포트 엔진이 직접 조회하는 런타임 catalog, Stage 2 입력/출력 계약을 고정하기 위한 파생 catalog, 그리고 병합 전 단일 ETF source dataset sample이 함께 있다. 현재 CLI와 repository 구현은 런타임 catalog를 우선 사용하며, source dataset sample은 데이터 lineage 확인과 bundle 재생성 기준으로 보존한다.
+
+### 0.1 런타임 catalog/bundle
+
+| 파일 | schemaVersion | 데이터 성격 | 주요 내용 | 용도 | 생성/참조 관계 | CLI/Stage 사용 위치 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `backend/data/etf_data.json` | `poc.etfMonthlyIssueReport.bundle.v1` | ETF 데이터 병합 bundle | dataset 4개, dataset별 `baseData`, `monthlySnapshots` 3개월, `sourceFiles` | 상품/월별 데이터 조회의 기준 데이터 | 4개 `*.dataset.sample.json`을 병합한 결과이며 Stage 2 catalog의 원천 bundle | CLI `--dataset-id`, `--month-id` 검증과 Stage 2 source/component 조회의 기준 |
+| `backend/data/report_templates.json` | `poc.etfReport.templates.v1` | 템플릿 catalog | template 2개, `sourceHtml`, `previewImage`, A4 page 설정 | 시각 템플릿과 preview image 선택 기준 | 데이터셋과 분리된 독립 catalog이며 `etf_data.json`과 판매사 일치 검사를 하지 않음 | CLI `--template-id` 검증과 Stage 1 템플릿 context 생성 |
+
+### 0.2 Stage 2 파생 데이터
+
+| 파일 | schemaVersion | 데이터 성격 | 주요 내용 | 용도 | 생성/참조 관계 | CLI/Stage 사용 위치 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `backend/data/etf_stage2_component_sources.json` | `poc.etfReport.stage2ComponentSources.v1` | Stage 2 입력 catalog | component source 60개, componentKey 5종, `datasetRef.datasetId`, `snapshotRef.monthId`, payload | `datasetId + monthId + componentKey` 단위로 LLM 또는 sample adapter에 넘길 입력 payload 고정 | `etf_data.json`의 dataset/month 데이터를 컴포넌트 단위로 펼친 파생 데이터 | Stage 2 component source 조회, Novita adapter 입력 경계, 로그의 `component_sources.json` |
+| `backend/data/etf_stage2_components.sample.json` | `poc.etfReport.stage2Components.v1` | Stage 2 sample 출력 catalog | 무스타일 HTML component 60개, `componentId`, `dataSourceId`, `chartSpec`, `styled=false` | LLM 없이 Stage 2 출력 계약을 재현하는 sample 결과 | `etf_stage2_component_sources.json`를 기준으로 미리 만든 Stage 2 출력 sample | CLI `--component-mode sample` 실행 시 Stage 2 결과와 component별 HTML 로그 생성 |
+
+### 0.3 병합 전 source dataset sample
+
+아래 4개 파일은 단일 ETF 단위의 원천 sample dataset이다. 각 파일은 `schemaVersion`, legacy/source lineage용 `template.id`, 월별로 변하지 않는 `baseData`, 3개월 `monthlySnapshots`, 시각 후보값인 `styleCandidates`를 가진다. 현재 런타임 조회는 병합 결과인 `etf_data.json`을 사용하므로, 이 파일들의 `template.id`는 CLI `--template-id`가 아니라 병합 전 원천 식별자로 해석한다.
+
+| 파일 | schemaVersion | 기존 원천 template.id | 판매사 | 상품명 | 주요 내용 | 용도 | 생성/참조 관계 | CLI/Stage 사용 위치 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500_H.dataset.sample.json` | `poc.etfMonthlyIssueReport.dataset.v1` | `kb_kodex_monthly_guidebook_449180` | 국민은행 | Kodex 미국 S&P500(H) ETF | 국민은행 월간 가이드북 기반 S&P500 환헤지형 sample, 3개월 snapshot | 병합 전 source 보존, 데이터 lineage 확인, bundle 재생성 기준 | `etf_data.json`의 `sourceFiles[]` 1번과 `data_kodex_us_sp500_h`의 원천 | 런타임 직접 조회 대상 아님 |
+| `backend/data/국민은행_월간_가이드북_KODEX_미국_S&P500.dataset.sample.json` | `poc.etfMonthlyIssueReport.dataset.v1` | `kb_kodex_monthly_guidebook_379800` | 국민은행 | Kodex 미국 S&P500 ETF | 국민은행 월간 가이드북 기반 S&P500 비헤지형 sample, 3개월 snapshot | 병합 전 source 보존, 데이터 lineage 확인, bundle 재생성 기준 | `etf_data.json`의 `sourceFiles[]` 2번과 `data_kodex_us_sp500`의 원천 | 런타임 직접 조회 대상 아님 |
+| `backend/data/국민은행_월간_가이드북_KODEX_미국나스닥100.dataset.sample.json` | `poc.etfMonthlyIssueReport.dataset.v1` | `kb_kodex_monthly_guidebook_379810` | 국민은행 | Kodex 미국나스닥100 ETF | 국민은행 월간 가이드북 기반 나스닥100 sample, 3개월 snapshot | 병합 전 source 보존, 데이터 lineage 확인, bundle 재생성 기준 | `etf_data.json`의 `sourceFiles[]` 3번과 `data_kodex_us_nasdaq100`의 원천 | 런타임 직접 조회 대상 아님 |
+| `backend/data/우리은행_월간_리포트.dataset.sample.json` | `poc.etfMonthlyIssueReport.dataset.v1` | `woori_kodex_monthly_issue_report` | 우리은행 | Kodex 코리아배당성장채권혼합 ETF | 우리은행 월간 리포트 HTML source 기반 sample, 3개월 snapshot | 병합 전 source 보존, 데이터 lineage 확인, bundle 재생성 기준 | `etf_data.json`의 `sourceFiles[]` 4번과 `data_kodex_korea_dividend_growth_bond_mixed`의 원천 | 런타임 직접 조회 대상 아님 |
+
 - 대상 파일: `backend/data/etf_data.json`
 - 템플릿 catalog: `backend/data/report_templates.json`
 - Stage 2 입력 catalog: `backend/data/etf_stage2_component_sources.json`
@@ -853,7 +882,7 @@ Stage 3는 선택된 ETF/month 조합의 Stage 2 컴포넌트 5개와 템플릿 
 
 | 입력 | 데이터 위치 |
 | --- | --- |
-| 템플릿 이미지 | `etf_data.json`의 `datasets[].template.previewImage` |
+| 템플릿 이미지 | `report_templates.json`의 선택된 `templateId` 항목의 `previewImage` |
 | 성과 차트 컴포넌트 | `stage2Components[]` 중 `componentKey=performance_chart`에 대응하는 component |
 | 성과 요약표 컴포넌트 | `stage2Components[]` 중 `componentKey=performance_summary`에 대응하는 component |
 | Top 10 보유내역 컴포넌트 | `stage2Components[]` 중 `componentKey=top_holdings`에 대응하는 component |
