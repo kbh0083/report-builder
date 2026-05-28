@@ -20,6 +20,10 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(dataset.datasetId, "data_kodex_us_sp500")
         self.assertEqual(kb_template.templateId, "tpl_kb_monthly_guidebook")
         self.assertEqual(woori_template.templateId, "tpl_woori_monthly_report")
+        self.assertEqual(kb_template.sourceHtml, "backend/data/report_template/우리은행_월간_리포트.html")
+        self.assertEqual(kb_template.previewImage, "backend/data/report_template/국민은행_월간_리포트.png")
+        self.assertEqual(woori_template.sourceHtml, "backend/data/report_template/우리은행_월간_리포트.html")
+        self.assertEqual(woori_template.previewImage, "backend/data/report_template/우리은행_월간_리포트.png")
 
     def test_cross_distributor_dataset_template_combinations_are_allowed(self):
         combinations = [

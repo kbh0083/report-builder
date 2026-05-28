@@ -1,0 +1,8 @@
+// ko: 템플릿 미리보기 이미지를 최대한 가깝게 맞추세요.
+// ko: 템플릿 미리보기 이미지는 시각 참고용으로만 취급하고, 리포트 데이터, 레이블, 숫자, 문구의 출처로 사용하지 마세요.
+// ko: Stage 3에서 A4 세로 레이아웃, 타이포그래피, 간격, 브랜드/헤더/푸터 스타일, 섹션 스타일을 생성하세요.
+[
+  "Match the template preview image as closely as possible.",
+  "Treat the template preview image as a visual reference only; do not use it as a source for report data, labels, numbers, or prose.",
+  "Generate A4 portrait layout, typography, spacing, brand/header/footer styling, and section styling in Stage 3."
+]

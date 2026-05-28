@@ -42,6 +42,14 @@ class DataCatalogTests(unittest.TestCase):
 
         for template in catalog["templates"]:
             self.assertEqual(template["page"], {"size": "A4", "orientation": "portrait"})
+            self.assertTrue(
+                template["sourceHtml"].startswith("backend/data/report_template/"),
+                template["sourceHtml"],
+            )
+            self.assertTrue(
+                template["previewImage"].startswith("backend/data/report_template/"),
+                template["previewImage"],
+            )
             self.assertTrue((WORKSPACE_ROOT / template["sourceHtml"]).is_file())
             self.assertTrue((WORKSPACE_ROOT / template["previewImage"]).is_file())
 

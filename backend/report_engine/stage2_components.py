@@ -1,5 +1,6 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
+from html.parser import HTMLParser
 from typing import Any
 
 from .errors import ErrorCode, ReportEngineError
@@ -123,6 +124,26 @@ class Stage2ComponentService:
 
     @staticmethod
     def _has_component_id_marker(component: Stage2Component) -> bool:
-        marker = re.escape(component.componentId)
-        pattern = rf"data-component-id\s*=\s*['\"]{marker}['\"]"
-        return re.search(pattern, component.html) is not None
+        parser = _ComponentIdMarkerParser(component.componentId)
+        parser.feed(component.html)
+        parser.close()
+        return parser.found
+
+
+class _ComponentIdMarkerParser(HTMLParser):
+    def __init__(self, component_id: str):
+        super().__init__(convert_charrefs=True)
+        self.component_id = component_id
+        self.found = False
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        self._check_attrs(attrs)
+
+    def handle_startendtag(self, tag: str, attrs) -> None:
+        self._check_attrs(attrs)
+
+    def _check_attrs(self, attrs) -> None:
+        for name, value in attrs:
+            if name.lower() == "data-component-id" and value == self.component_id:
+                self.found = True
+                return

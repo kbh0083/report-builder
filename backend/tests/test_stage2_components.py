@@ -91,6 +91,32 @@ class Stage2ComponentTests(unittest.TestCase):
             self.service.validate_components([broken, *components[1:]])
         self.assertEqual(caught.exception.code, ErrorCode.COMPONENT_SOURCE_INCOMPLETE)
 
+    def test_rejects_component_id_marker_only_in_text(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+
+        components = self.service.load_components("data_kodex_us_sp500", "2026-03", component_mode="sample")
+        broken = replace(
+            components[0],
+            html=f'<section><p>data-component-id="{components[0].componentId}"</p></section>',
+        )
+
+        with self.assertRaises(ReportEngineError) as caught:
+            self.service.validate_components([broken, *components[1:]])
+        self.assertEqual(caught.exception.code, ErrorCode.COMPONENT_SOURCE_INCOMPLETE)
+
+    def test_rejects_component_id_marker_inside_other_attribute_value(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+
+        components = self.service.load_components("data_kodex_us_sp500", "2026-03", component_mode="sample")
+        broken = replace(
+            components[0],
+            html=f'<section title=\'data-component-id="{components[0].componentId}"\'></section>',
+        )
+
+        with self.assertRaises(ReportEngineError) as caught:
+            self.service.validate_components([broken, *components[1:]])
+        self.assertEqual(caught.exception.code, ErrorCode.COMPONENT_SOURCE_INCOMPLETE)
+
 
 class FakeLlmAdapter:
     def __init__(self):
@@ -109,10 +135,10 @@ class FakeLlmAdapter:
             "styled": False,
         }
 
-    def generate_stage3_layout(self, prompt_input):
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         component_ids = [item["componentId"] for item in prompt_input["components"]]
         body = "\n".join(f'<section data-component-id="{component_id}"></section>' for component_id in component_ids)
-        return f"<!doctype html><html><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class SlowOutOfOrderLlmAdapter:

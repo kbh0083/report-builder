@@ -10,7 +10,9 @@
 - Task 6의 핵심 범위는 구현된 상태다.
 - `componentMode=novita` 실행 경로가 열렸고, Stage 2 component 5개는 Novita adapter를 통해 병렬 생성된다.
 - 실제 Novita HTTP adapter는 구현되어 있으나 기본 자동 테스트는 fake adapter 기반으로 유지한다.
-- Stage 3 layout service가 분리되었고, Stage 3는 단일 HTML draft만 생성한다.
+- Stage 3 layout service가 분리되었고, Stage 3는 단일 HTML draft를 생성한다.
+- Novita Stage 3의 문서상 계약은 layout과 CSS를 함께 포함한 단일 HTML이다. Stage 2 fragment는 무스타일 상태를 유지하고, 표현 스타일은 Stage 3에서 생성한다.
+- `componentMode=sample`처럼 LLM adapter가 없는 offline fallback draft는 구조 확인용 최소 HTML이므로 CSS가 없을 수 있다. `backend/log/job_20260527_163917_bf878831/03_layout/report_draft.html`은 이 케이스다.
 - chart 실제 렌더링은 Stage 3에서 하지 않는다. Stage 3 output에는 chart placeholder만 남기고, chart 구현은 다음 Stage 4 범위로 남긴다.
 - Stage 3에는 footer/bottom disclaimer가 본문과 겹치지 않도록 normal flow, absolute/fixed 금지, bottom safe area 방어 규칙이 추가되었다.
 - CLI 실행 중 stage 진행 상황과 LLM 요청/응답 상태가 JSONL 형태로 콘솔에 출력된다.
@@ -23,7 +25,7 @@
 | Stage 2 novita mode | 구현 | `componentMode=novita`에서 component source 5개를 조회하고 LLM 호출 결과로 `Stage2Component` 5개를 만든다. |
 | Stage 2 병렬화 | 구현 | `ThreadPoolExecutor` 기반 fan-out/fan-in 구조로 5개 component LLM 호출을 병렬 실행한다. 결과 순서는 고정 component 순서를 보존한다. |
 | Stage 2 검증 | 구현 | source metadata를 신뢰하고 LLM 응답에서는 `html`, `chartSpec`, `styled`만 반영한다. `data-component-id`, style/class 금지, chartSpec 규칙을 검증한다. |
-| Stage 3 layout | 구현 | template, dataset, month summary, components를 prompt input으로 구성하고 adapter 결과가 단일 HTML 문서인지 검증한다. |
+| Stage 3 layout/CSS | 구현/문서 보강 | template, dataset, month summary, components를 prompt input으로 구성하고 adapter 결과가 단일 HTML 문서인지 검증한다. Novita Stage 3 계약은 document-local CSS를 포함한 단일 HTML이며, sample/offline fallback draft는 CSS 없는 구조 확인용 HTML일 수 있다. |
 | Stage 3 chart boundary | 구현 | `performance_chart`는 chart placeholder만 포함한다. Stage 3 prompt와 validator 모두 SVG/canvas/script/Chart.js 생성을 거부한다. |
 | Stage 3 overlap defense | 구현 | footer/bottom disclaimer가 absolute/fixed positioning으로 겹치는 output을 `LAYOUT_GENERATION_INVALID`로 거부한다. |
 | CLI logging | 구현 | `stage.started`, `stage.completed`, `stage.failed`, `llm.request.started`, `llm.response.completed`, `llm.response.failed` 이벤트를 콘솔에 출력한다. |
@@ -112,7 +114,7 @@ backend/log/{jobId}/05_verification/verification.json
 backend/log/{jobId}/06_final/final_result.json
 ```
 
-Stage 3 draft에서 `performance_chart` 영역은 chart placeholder만 있어야 한다. `<svg>`, `<canvas>`, `<script>`, Chart.js 기반 chart render는 Stage 3 결과물에 포함되면 안 된다.
+Stage 3 draft에서 `performance_chart` 영역은 chart placeholder만 있어야 한다. `<svg>`, `<canvas>`, `<script>`, Chart.js 기반 chart render는 Stage 3 결과물에 포함되면 안 된다. Novita Stage 3 draft는 `<style>` block 또는 동등한 document-local CSS를 포함해야 하며, sample/offline fallback draft는 CSS가 없을 수 있다.
 
 ## 7. 보안 및 로그 주의사항
 
@@ -128,10 +130,11 @@ Stage 3 draft에서 `performance_chart` 영역은 chart placeholder만 있어야
 1. `git status --short --branch --untracked-files=all`로 작업 트리 상태를 먼저 확인한다.
 2. 전체 테스트를 다시 실행해 현재 환경에서도 50개 테스트가 통과하는지 확인한다.
 3. Novita live CLI 경로를 한 번 더 실행해 `componentMode=novita`와 Stage 3 draft가 end-to-end로 동작하는지 확인한다.
-4. Stage 4 renderer를 구현한다. 여기서 chartSpec을 실제 chart로 렌더링하고 PDF/image 등 final draft 산출물 경계를 정의한다.
-5. Stage 5 visual verification을 구현한다. Stage 3에서 막는 footer overlap 같은 레이아웃 문제를 Stage 5에서도 시각적으로 검출할 수 있게 한다.
-6. Stage 6 finalization/version store 경계를 구현한다.
-7. Task 6 변경분과 handoff 변경분을 커밋하기 전 `git diff --check`와 전체 테스트를 다시 실행한다.
+4. Stage 3 CSS 생성 계약을 코드 prompt, validator, test에도 반영할지 검토한다. 현재 문서 보강은 CSS 요구를 명확히 한 것이며, production validator 강제는 별도 구현 범위다.
+5. Stage 4 renderer를 구현한다. 여기서 chartSpec을 실제 chart로 렌더링하고 PDF/image 등 final draft 산출물 경계를 정의한다.
+6. Stage 5 visual verification을 구현한다. Stage 3에서 막는 footer overlap 같은 레이아웃 문제를 Stage 5에서도 시각적으로 검출할 수 있게 한다.
+7. Stage 6 finalization/version store 경계를 구현한다.
+8. Task 6 변경분과 handoff 변경분을 커밋하기 전 `git diff --check`와 전체 테스트를 다시 실행한다.
 
 ## 9. 다음 세션 읽기 순서
 

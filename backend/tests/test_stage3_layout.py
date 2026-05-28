@@ -1,4 +1,5 @@
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,13 +20,36 @@ class Stage3LayoutTests(unittest.TestCase):
         self.components = self.repository.load_sample_components("data_kodex_us_sp500", "2026-03")
 
     def test_fake_adapter_generates_single_html_with_all_component_ids(self):
+        from report_engine.prompt_store import PromptStore
         from report_engine.stage3_layout import Stage3LayoutService
 
         adapter = FakeLayoutAdapter()
-        service = Stage3LayoutService(adapter)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prompt_root = Path(tmpdir)
+            _write_prompt_json(
+                prompt_root,
+                "03_layout_visual_objective.json",
+                [
+                    "Custom visual objective: template preview image.",
+                    "Custom visual objective: visual reference only.",
+                ],
+            )
+            _write_prompt_json(
+                prompt_root,
+                "03_layout_constraints.json",
+                [
+                    "Custom constraint: Generate document-local CSS in a non-empty <style> block.",
+                    "Custom constraint: Footer must stay in normal document flow.",
+                    "Custom constraint: Do not use position:absolute or position:fixed for footer or bottom disclaimers.",
+                    "Custom constraint: Do not copy data labels, table values, or prose from template sourceHtml or preview image.",
+                    "Custom constraint: Match the template preview image as closely as possible.",
+                ],
+            )
+            _write_prompt_json(prompt_root, "03_layout_correction_requirements.json", ["Return one complete HTML document."])
+            service = Stage3LayoutService(adapter, prompt_store=PromptStore(prompt_root))
 
-        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
-        html = service.generate_report_draft(prompt_input, self.components)
+            prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+            html = service.generate_report_draft(prompt_input, self.components)
 
         self.assertTrue(html.lower().startswith("<!doctype html>"))
         for component in self.components:
@@ -34,14 +58,405 @@ class Stage3LayoutTests(unittest.TestCase):
         self.assertIn("previewImage", prompt_input["template"])
         self.assertIn("sourceHtml", prompt_input["template"])
         self.assertEqual(prompt_input["dataset"]["datasetId"], "data_kodex_us_sp500")
+        self.assertIn("styleCandidates", prompt_input["dataset"])
+        self.assertEqual(
+            prompt_input["visualObjective"],
+            [
+                "Custom visual objective: template preview image.",
+                "Custom visual objective: visual reference only.",
+            ],
+        )
         self.assertEqual(prompt_input["monthSnapshot"]["monthId"], "2026-03")
         self.assertIn("data-chart-placeholder", json.dumps(prompt_input, ensure_ascii=False))
         self.assertNotIn("chartSpec", json.dumps(prompt_input, ensure_ascii=False))
         self.assertNotIn("<canvas", json.dumps(prompt_input, ensure_ascii=False).lower())
-        self.assertIn("Footer must stay in normal document flow.", prompt_input["constraints"])
-        self.assertIn("Do not use position:absolute or position:fixed for footer or bottom disclaimers.", prompt_input["constraints"])
+        self.assertIn("Custom constraint: Footer must stay in normal document flow.", prompt_input["constraints"])
+        self.assertIn("Custom constraint: Do not use position:absolute or position:fixed for footer or bottom disclaimers.", prompt_input["constraints"])
+        self.assertIn("Custom constraint: Generate document-local CSS in a non-empty <style> block.", prompt_input["constraints"])
+        self.assertIn("Custom constraint: Match the template preview image as closely as possible.", prompt_input["constraints"])
+        self.assertIn("Custom constraint: Do not copy data labels, table values, or prose from template sourceHtml or preview image.", prompt_input["constraints"])
         self.assertNotIn("LLM_API_KEY", json.dumps(prompt_input, ensure_ascii=False))
         self.assertNotIn("apiKey", json.dumps(prompt_input, ensure_ascii=False))
+
+    def test_retries_once_when_initial_layout_invalid_then_accepts_correction(self):
+        from report_engine.prompt_store import PromptStore
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        adapter = CssMissingThenValidAdapter()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prompt_root = Path(tmpdir)
+            _write_default_stage3_prompt_files(prompt_root)
+            _write_prompt_json(prompt_root, "03_layout_correction_requirements.json", ["Custom correction: Return one complete HTML document."])
+            service = Stage3LayoutService(adapter, prompt_store=PromptStore(prompt_root))
+            prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+            html = service.generate_report_draft(prompt_input, self.components, template_image_data_url="data:image/png;base64,abc")
+
+        self.assertIn("<!doctype html>", html)
+        self.assertEqual(adapter.call_count, 2)
+        self.assertEqual(adapter.template_image_data_urls, ["data:image/png;base64,abc", "data:image/png;base64,abc"])
+        correction = adapter.prompt_inputs[1]["correction"]
+        self.assertEqual(correction["attempt"], 1)
+        self.assertIn("LAYOUT_GENERATION_INVALID", correction["previousError"])
+        self.assertIn("rejectedHtml", correction)
+        self.assertIn("Custom correction: Return one complete HTML document.", correction["requirements"])
+
+    def test_invalid_stage3_prompt_json_raises_config_invalid(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.prompt_store import PromptStore
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prompt_root = Path(tmpdir)
+            _write_prompt_file(prompt_root, "03_layout_visual_objective.json", "{not-json")
+            _write_prompt_json(prompt_root, "03_layout_constraints.json", [])
+            _write_prompt_json(prompt_root, "03_layout_correction_requirements.json", [])
+            service = Stage3LayoutService(FakeLayoutAdapter(), prompt_store=PromptStore(prompt_root))
+
+            with self.assertRaises(ReportEngineError) as caught:
+                service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.CONFIG_INVALID)
+        self.assertIn("03_layout_visual_objective.json", str(caught.exception))
+
+    def test_empty_stage3_prompt_json_list_raises_config_invalid(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.prompt_store import PromptStore
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prompt_root = Path(tmpdir)
+            _write_prompt_json(prompt_root, "03_layout_visual_objective.json", [])
+            _write_prompt_json(prompt_root, "03_layout_constraints.json", ["Return one complete HTML document."])
+            _write_prompt_json(prompt_root, "03_layout_correction_requirements.json", ["Return one complete HTML document."])
+            service = Stage3LayoutService(FakeLayoutAdapter(), prompt_store=PromptStore(prompt_root))
+
+            with self.assertRaises(ReportEngineError) as caught:
+                service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.CONFIG_INVALID)
+        self.assertIn("non-empty list of strings", str(caught.exception))
+
+    def test_retries_once_when_source_text_is_missing_then_accepts_correction(self):
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        adapter = SourceMissingThenValidAdapter()
+        service = Stage3LayoutService(adapter)
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        html = service.generate_report_draft(prompt_input, self.components)
+
+        self.assertIn("NVIDIA Corp", html)
+        self.assertEqual(adapter.call_count, 2)
+        self.assertIn("source fragments", " ".join(adapter.prompt_inputs[1]["correction"]["requirements"]))
+
+    def test_rejects_when_correction_output_remains_invalid(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        adapter = AlwaysCssMissingAdapter()
+        service = Stage3LayoutService(adapter)
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertEqual(adapter.call_count, 2)
+
+    def test_rejects_layout_missing_non_chart_source_fragment(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        service = Stage3LayoutService(SourceMissingAdapter())
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("source fragments", str(caught.exception))
+
+    def test_allows_template_heading_relabel_when_source_body_fragments_are_preserved(self):
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = _preservation_component()
+        service = Stage3LayoutService(HeadingRelabeledAdapter())
+        prompt_input = {
+            "components": [
+                {
+                    "componentId": component.componentId,
+                    "componentKey": component.componentKey,
+                    "renderType": component.renderType,
+                    "html": component.html,
+                }
+            ]
+        }
+
+        html = service.generate_report_draft(prompt_input, [component])
+
+        self.assertIn("ETF 성과 추이", html)
+        self.assertNotIn("ETF 성과 추이 요약", html)
+
+    def test_rejects_layout_missing_source_table_header(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = _preservation_component()
+        service = Stage3LayoutService(MissingTableHeaderAdapter())
+        prompt_input = {"components": [{"componentId": component.componentId, "html": component.html}]}
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, [component])
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+
+    def test_rejects_layout_missing_source_table_number(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = _preservation_component()
+        service = Stage3LayoutService(MissingTableNumberAdapter())
+        prompt_input = {"components": [{"componentId": component.componentId, "html": component.html}]}
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, [component])
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+
+    def test_rejects_layout_missing_source_list_item(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = _preservation_component()
+        service = Stage3LayoutService(MissingListItemAdapter())
+        prompt_input = {"components": [{"componentId": component.componentId, "html": component.html}]}
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, [component])
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+
+    def test_allows_decorative_list_markers_to_move_out_of_visible_text(self):
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = Stage2Component(
+            componentId="comp_outlook",
+            dataSourceId="ds_outlook",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="outlook",
+            renderType="article",
+            html=(
+                '<section data-component-id="comp_outlook">'
+                "<ul>"
+                "<li>① NVIDIA와 BROADCOM을 중심으로 한 AI 반도체 수요가 지수 성과의 핵심 동력으로 작용할 전망</li>"
+                "<li>② 대형 플랫폼 기업의 광고, 클라우드, 구독 매출 회복이 <strong>이익 안정성</strong>을 높일 가능성</li>"
+                "<li>③ 높은 성장주 집중도는 금리 상승 또는 규제 이슈 발생 시 단기 조정 폭을 키울 수 있음</li>"
+                "</ul>"
+                "</section>"
+            ),
+            chartSpec=None,
+            styled=False,
+        )
+
+        html = Stage3LayoutService(ListMarkerMovedAdapter()).generate_report_draft(
+            {"components": [{"componentId": component.componentId, "html": component.html}]},
+            [component],
+        )
+
+        self.assertIn('data-num="1"', html)
+        self.assertIn("이익 안정성", html)
+
+    def test_chart_component_source_text_is_not_required_in_stage3(self):
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><h2>Chart Source Text</h2><canvas>chart-only-source</canvas></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+        summary = Stage2Component(
+            componentId="comp_summary",
+            dataSourceId="ds_summary",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_summary",
+            renderType="table",
+            html='<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>',
+            chartSpec=None,
+            styled=False,
+        )
+        service = Stage3LayoutService(ChartPlaceholderOnlyAdapter())
+        prompt_input = {
+            "components": [
+                {"componentId": "comp_chart", "html": '<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>'},
+                {"componentId": "comp_summary", "html": summary.html},
+            ]
+        }
+
+        html = service.generate_report_draft(prompt_input, [chart, summary])
+
+        self.assertIn('data-chart-placeholder="comp_chart"', html)
+        self.assertNotIn("chart-only-source", html)
+        self.assertIn("Preserve this summary value 12.34", html)
+
+    def test_accepts_chart_placeholder_without_component_id_marker(self):
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+        summary = Stage2Component(
+            componentId="comp_summary",
+            dataSourceId="ds_summary",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_summary",
+            renderType="table",
+            html='<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>',
+            chartSpec=None,
+            styled=False,
+        )
+
+        html = Stage3LayoutService(ChartPlaceholderWithoutComponentIdAdapter()).generate_report_draft(
+            {"components": [{"componentId": "comp_chart"}, {"componentId": "comp_summary"}]},
+            [chart, summary],
+        )
+
+        self.assertIn('data-chart-placeholder="comp_chart"', html)
+        self.assertNotIn('data-component-id="comp_chart"', html)
+        self.assertIn("Preserve this summary value 12.34", html)
+
+    def test_accepts_chart_placeholder_when_css_uses_exact_attribute_selector(self):
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+
+        html = Stage3LayoutService(ChartPlaceholderWithExactCssSelectorAdapter()).generate_report_draft(
+            {"components": [{"componentId": "comp_chart"}]},
+            [chart],
+        )
+
+        self.assertIn('[data-chart-placeholder="comp_chart"]', html)
+        self.assertIn('data-chart-placeholder="comp_chart"', html)
+
+    def test_rejects_chart_component_without_placeholder(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+
+        with self.assertRaises(ReportEngineError) as caught:
+            Stage3LayoutService(ChartComponentWithoutPlaceholderAdapter()).generate_report_draft(
+                {"components": [{"componentId": "comp_chart"}]},
+                [chart],
+            )
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("chart placeholders", str(caught.exception))
+
+    def test_rejects_duplicate_chart_placeholders(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+
+        with self.assertRaises(ReportEngineError) as caught:
+            Stage3LayoutService(DuplicateChartPlaceholderAdapter()).generate_report_draft(
+                {"components": [{"componentId": "comp_chart"}]},
+                [chart],
+            )
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("exactly one chart placeholder", str(caught.exception))
+
+    def test_rejects_layout_without_document_local_css(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        service = Stage3LayoutService(CssMissingAdapter())
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("CSS", str(caught.exception))
+
+    def test_rejects_layout_with_external_css_or_network_resource(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        service = Stage3LayoutService(ExternalCssAdapter())
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+
+    def test_rejects_layout_with_protocol_relative_network_resource(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        service = Stage3LayoutService(ProtocolRelativeResourceAdapter())
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
 
     def test_rejects_layout_that_renders_chart_before_stage4(self):
         from report_engine.errors import ErrorCode, ReportEngineError
@@ -54,6 +469,94 @@ class Stage3LayoutTests(unittest.TestCase):
             service.generate_report_draft(prompt_input, self.components)
 
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+
+    def test_accepts_non_chart_inline_svg_decoration(self):
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+        summary = Stage2Component(
+            componentId="comp_summary",
+            dataSourceId="ds_summary",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_summary",
+            renderType="table",
+            html='<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>',
+            chartSpec=None,
+            styled=False,
+        )
+
+        html = Stage3LayoutService(NonChartSvgDecorationAdapter()).generate_report_draft(
+            {"components": [{"componentId": "comp_chart"}, {"componentId": "comp_summary"}]},
+            [chart, summary],
+        )
+
+        self.assertIn("<svg", html)
+        self.assertIn('data-chart-placeholder="comp_chart"', html)
+        self.assertIn("Preserve this summary value 12.34", html)
+
+    def test_rejects_svg_inside_chart_placeholder(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+
+        with self.assertRaises(ReportEngineError) as caught:
+            Stage3LayoutService(ChartPlaceholderSvgAdapter()).generate_report_draft(
+                {"components": [{"componentId": "comp_chart"}]},
+                [chart],
+            )
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("render charts", str(caught.exception))
+
+    def test_rejects_data_chart_rendered_svg_outside_chart_scope(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        chart = Stage2Component(
+            componentId="comp_chart",
+            dataSourceId="ds_chart",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_chart",
+            renderType="chart",
+            html='<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>',
+            chartSpec={"type": "line"},
+            styled=False,
+        )
+
+        with self.assertRaises(ReportEngineError) as caught:
+            Stage3LayoutService(DataChartRenderedSvgAdapter()).generate_report_draft(
+                {"components": [{"componentId": "comp_chart"}]},
+                [chart],
+            )
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("render charts", str(caught.exception))
 
     def test_rejects_layout_with_absolute_footer_overlap_risk(self):
         from report_engine.errors import ErrorCode, ReportEngineError
@@ -79,6 +582,64 @@ class Stage3LayoutTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
 
+    def test_rejects_layout_with_component_id_only_in_text(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = Stage2Component(
+            componentId="comp_article",
+            dataSourceId="ds_article",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="review",
+            renderType="article",
+            html='<section data-component-id="comp_article"><p>Preserve this article text.</p></section>',
+            chartSpec=None,
+            styled=False,
+        )
+        service = Stage3LayoutService(TextOnlyComponentIdAdapter())
+        prompt_input = {
+            "components": [
+                {
+                    "componentId": component.componentId,
+                    "html": component.html,
+                }
+            ]
+        }
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, [component])
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("missing components", str(caught.exception))
+
+    def test_rejects_component_id_only_in_css_selector(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = Stage2Component(
+            componentId="comp_article",
+            dataSourceId="ds_article",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="review",
+            renderType="article",
+            html='<section data-component-id="comp_article"><p>Preserve this article text.</p></section>',
+            chartSpec=None,
+            styled=False,
+        )
+
+        with self.assertRaises(ReportEngineError) as caught:
+            Stage3LayoutService(CssOnlyComponentIdAdapter()).generate_report_draft(
+                {"components": [{"componentId": component.componentId, "html": component.html}]},
+                [component],
+            )
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("missing components", str(caught.exception))
+
     def test_accepts_markdown_fenced_html_from_llm(self):
         from report_engine.stage3_layout import Stage3LayoutService
 
@@ -94,29 +655,249 @@ class Stage3LayoutTests(unittest.TestCase):
 
 
 class FakeLayoutAdapter:
-    def generate_stage3_layout(self, prompt_input):
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         self.last_prompt_input = prompt_input
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class _SequenceLayoutAdapter:
+    def __init__(self):
+        self.call_count = 0
+        self.prompt_inputs = []
+        self.template_image_data_urls = []
+
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        self.call_count += 1
+        self.prompt_inputs.append(prompt_input)
+        self.template_image_data_urls.append(template_image_data_url)
+        return self._response(prompt_input, self.call_count)
+
+    def _response(self, prompt_input, call_count):
+        raise NotImplementedError
+
+    @staticmethod
+    def _valid_html(prompt_input):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class CssMissingThenValidAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
+        if call_count == 1:
+            body = "\n".join(item["html"] for item in prompt_input["components"])
+            return f"<!doctype html><html><body>{body}</body></html>"
+        return self._valid_html(prompt_input)
+
+
+class SourceMissingThenValidAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
+        if call_count == 1:
+            body = "\n".join(
+                item["html"].replace("NVIDIA Corp", "")
+                for item in prompt_input["components"]
+            )
+            return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return self._valid_html(prompt_input)
+
+
+class AlwaysCssMissingAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
         body = "\n".join(item["html"] for item in prompt_input["components"])
         return f"<!doctype html><html><body>{body}</body></html>"
 
 
+class CssMissingAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        return f"<!doctype html><html><body>{body}</body></html>"
+
+
+class ExternalCssAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        return (
+            '<!doctype html><html><head><link rel="stylesheet" href="https://example.com/report.css">'
+            "<style>@import url('https://example.com/theme.css'); body { margin: 0; }</style></head>"
+            f"<body>{body}</body></html>"
+        )
+
+
+class ProtocolRelativeResourceAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        return (
+            "<!doctype html><html><head><style>body { margin: 0; }</style></head>"
+            f'<body>{body}<img src="//example.com/report.png" alt=""></body></html>'
+        )
+
+
+class SourceMissingAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = "\n".join(
+            item["html"].replace("NVIDIA Corp", "")
+            for item in prompt_input["components"]
+        )
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class HeadingRelabeledAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = prompt_input["components"][0]["html"].replace("ETF 성과 추이 요약", "ETF 성과 추이")
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class MissingTableHeaderAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = prompt_input["components"][0]["html"].replace("<th>1개월</th>", "")
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class MissingTableNumberAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = prompt_input["components"][0]["html"].replace("<td>6.45%</td>", "")
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class MissingListItemAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = prompt_input["components"][0]["html"].replace("<li>BM : NASDAQ 100 Index</li>", "")
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class ListMarkerMovedAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<section data-component-id="comp_outlook">'
+            '<ul>'
+            '<li data-num="1">NVIDIA와 BROADCOM을 중심으로 한 AI 반도체 수요가 지수 성과의 핵심 동력으로 작용할 전망</li>'
+            '<li data-num="2">대형 플랫폼 기업의 광고, 클라우드, 구독 매출 회복이 <strong>이익 안정성</strong>을 높일 가능성</li>'
+            '<li data-num="3">높은 성장주 집중도는 금리 상승 또는 규제 이슈 발생 시 단기 조정 폭을 키울 수 있음</li>'
+            '</ul>'
+            '</section>'
+            '</body></html>'
+        )
+
+
+class ChartPlaceholderOnlyAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>'
+            '<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>'
+            "</body></html>"
+        )
+
+
+class ChartPlaceholderWithoutComponentIdAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<div class="chart-placeholder" data-chart-placeholder="comp_chart">Chart placeholder</div>'
+            '<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>'
+            "</body></html>"
+        )
+
+
+class ChartPlaceholderWithExactCssSelectorAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>'
+            '[data-chart-placeholder="comp_chart"] { min-height: 120px; }'
+            "</style></head><body>"
+            '<div class="chart-placeholder" data-chart-placeholder="comp_chart">Chart placeholder</div>'
+            "</body></html>"
+        )
+
+
+class ChartComponentWithoutPlaceholderAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<section data-component-id="comp_chart"><div class="chart-placeholder">Chart placeholder</div></section>'
+            "</body></html>"
+        )
+
+
+class DuplicateChartPlaceholderAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<section data-component-id="comp_chart">'
+            '<div data-chart-placeholder="comp_chart">Chart placeholder 1</div>'
+            '<div data-chart-placeholder="comp_chart">Chart placeholder 2</div>'
+            "</section>"
+            "</body></html>"
+        )
+
+
+def _preservation_component():
+    from report_engine.models import Stage2Component
+
+    return Stage2Component(
+        componentId="comp_summary",
+        dataSourceId="ds_summary",
+        datasetId="data_x",
+        monthId="2026-03",
+        componentKey="performance_summary",
+        renderType="table",
+        html=(
+            '<section data-component-id="comp_summary">'
+            "<h2>ETF 성과 추이 요약</h2>"
+            "<table><thead><tr><th>1개월</th><th>3개월</th></tr></thead>"
+            "<tbody><tr><td>6.45%</td><td>16.72%</td></tr></tbody></table>"
+            "<ul><li>BM : NASDAQ 100 Index</li></ul>"
+            "<p>과거수익률이 미래성과를 보장하지 않습니다.</p>"
+            "</section>"
+        ),
+        chartSpec=None,
+        styled=False,
+    )
+
+
 class MissingComponentAdapter:
-    def generate_stage3_layout(self, prompt_input):
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(
             f'<section data-component-id="{item["componentId"]}"></section>'
             for item in prompt_input["components"][:-1]
         )
-        return f"<!doctype html><html><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class TextOnlyComponentIdAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body_parts = []
+        for index, item in enumerate(prompt_input["components"]):
+            if index:
+                body_parts.append(item["html"])
+                continue
+            marker = f'data-component-id="{item["componentId"]}"'
+            component_html = item["html"].replace(marker, 'data-removed-component-id="x"')
+            body_parts.append(f'<section><p>{item["componentId"]}</p>{component_html}</section>')
+        body = "\n".join(body_parts)
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class CssOnlyComponentIdAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>'
+            '[data-component-id="comp_article"] { margin: 0; }'
+            "</style></head><body>"
+            "<section><p>Preserve this article text.</p></section>"
+            "</body></html>"
+        )
 
 
 class FencedHtmlAdapter:
-    def generate_stage3_layout(self, prompt_input):
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(item["html"] for item in prompt_input["components"])
-        return f"```html\n<!doctype html><html><body>{body}</body></html>\n```"
+        return f"```html\n<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>\n```"
 
 
 class ChartRenderingAdapter:
-    def generate_stage3_layout(self, prompt_input):
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(
             f'<section data-component-id="{component_id}"><svg><rect width="1" height="1"></rect></svg></section>'
             if item["renderType"] == "chart"
@@ -124,11 +905,45 @@ class ChartRenderingAdapter:
             for item in prompt_input["components"]
             for component_id in [item["componentId"]]
         )
-        return f"<!doctype html><html><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+
+
+class NonChartSvgDecorationAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<header><svg viewBox="0 0 10 10"><rect width="10" height="10"></rect></svg></header>'
+            '<main>'
+            '<div data-chart-placeholder="comp_chart">Chart placeholder</div>'
+            '<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>'
+            '</main>'
+            '</body></html>'
+        )
+
+
+class ChartPlaceholderSvgAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<div data-chart-placeholder="comp_chart">'
+            '<svg viewBox="0 0 10 10"><polyline points="0,10 10,0"></polyline></svg>'
+            '</div>'
+            '</body></html>'
+        )
+
+
+class DataChartRenderedSvgAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        return (
+            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            '<div data-chart-placeholder="comp_chart">Chart placeholder</div>'
+            '<svg data-chart-rendered="performance_chart" viewBox="0 0 10 10"></svg>'
+            '</body></html>'
+        )
 
 
 class AbsoluteFooterAdapter:
-    def generate_stage3_layout(self, prompt_input):
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(item["html"] for item in prompt_input["components"])
         return (
             "<!doctype html><html><head><style>"
@@ -137,6 +952,64 @@ class AbsoluteFooterAdapter:
             f"{body}<footer>disclaimer</footer>"
             "</body></html>"
         )
+
+
+def _write_default_stage3_prompt_files(prompt_root: Path) -> None:
+    _write_prompt_json(
+        prompt_root,
+        "03_layout_visual_objective.json",
+        [
+            "Match the template preview image as closely as possible.",
+            "Treat the template preview image as a visual reference only; do not use it as a source for report data, labels, numbers, or prose.",
+            "Generate A4 portrait layout, typography, spacing, brand/header/footer styling, and section styling in Stage 3.",
+        ],
+    )
+    _write_prompt_json(
+        prompt_root,
+        "03_layout_constraints.json",
+        [
+            "Return one complete HTML document.",
+            "Match the template preview image as closely as possible.",
+            "Use sourceHtml, styleCandidates, and template preview image only as visual references.",
+            "Use supplied Stage 2 components as the only source for report data, table labels, values, and prose.",
+            "Do not copy data labels, table values, or prose from template sourceHtml or preview image.",
+            "Generate document-local CSS in a non-empty <style> block.",
+            "Do not use external CSS files, @import, external fonts, or external network resources.",
+            "Stage 3 CSS must cover A4 portrait layout, header/footer/brand, section spacing, typography, table/list/article styling, chart placeholder space, and bottom safe area.",
+            "Preserve every Stage 2 component id.",
+            "Do not change source numbers or source wording.",
+            "Do not reference external network resources.",
+            "Do not render charts in Stage 3.",
+            "Keep chart components as data-chart-placeholder containers only; Stage 4 renders chart assets.",
+            "Do not render charts using SVG, canvas, script, Chart.js, or other chart rendering markup.",
+            "Footer must stay in normal document flow.",
+            "Do not use position:absolute or position:fixed for footer or bottom disclaimers.",
+            "Reserve a bottom safe area so the final section never overlaps the footer.",
+            "If content is long, reduce spacing or continue the normal page flow instead of overlapping footer text.",
+        ],
+    )
+    _write_prompt_json(
+        prompt_root,
+        "03_layout_correction_requirements.json",
+        [
+            "Return one complete HTML document.",
+            "Fix missing CSS, missing components, missing chart placeholders, omitted source fragments, chart rendering markup, and footer flow violations.",
+            "Preserve every non-chart Stage 2 table header, table cell, paragraph, and list item exactly as visible text.",
+            "Keep chart components as exact data-chart-placeholder containers only; do not render charts in Stage 3.",
+            "Do not render charts using SVG, canvas, script, or Chart.js.",
+            "Each chart component must include exactly one data-chart-placeholder attribute whose value is the componentId.",
+            "Return raw HTML only; do not include Markdown fences or explanations.",
+        ],
+    )
+
+
+def _write_prompt_json(prompt_root: Path, filename: str, value) -> None:
+    _write_prompt_file(prompt_root, filename, json.dumps(value, ensure_ascii=False))
+
+
+def _write_prompt_file(prompt_root: Path, filename: str, content: str) -> None:
+    prompt_root.mkdir(parents=True, exist_ok=True)
+    (prompt_root / filename).write_text(content, encoding="utf-8")
 
 
 if __name__ == "__main__":

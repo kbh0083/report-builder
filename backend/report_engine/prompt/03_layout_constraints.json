@@ -1,0 +1,38 @@
+// ko: 완전한 HTML 문서 하나를 반환하세요.
+// ko: 템플릿 미리보기 이미지를 최대한 가깝게 맞추세요.
+// ko: sourceHtml, styleCandidates, 템플릿 미리보기 이미지는 시각 참고용으로만 사용하세요.
+// ko: 제공된 Stage 2 컴포넌트만 리포트 데이터, 표 레이블, 값, 문구의 유일한 출처로 사용하세요.
+// ko: 템플릿 sourceHtml이나 미리보기 이미지에서 데이터 레이블, 표 값, 문구를 복사하지 마세요.
+// ko: 비어 있지 않은 <style> 블록에 문서 내부 CSS를 생성하세요.
+// ko: 외부 CSS 파일, @import, 외부 폰트, 외부 네트워크 리소스를 사용하지 마세요.
+// ko: Stage 3 CSS는 A4 세로 레이아웃, 헤더/푸터/브랜드, 섹션 간격, 타이포그래피, 표/목록/기사 스타일, 차트 placeholder 공간, 하단 안전 영역을 포함해야 합니다.
+// ko: 모든 Stage 2 컴포넌트 id를 보존하세요.
+// ko: 원본 숫자나 원본 문구를 변경하지 마세요.
+// ko: 외부 네트워크 리소스를 참조하지 마세요.
+// ko: Stage 3에서 차트를 렌더링하지 마세요.
+// ko: 차트 컴포넌트는 data-chart-placeholder 컨테이너로만 유지하고, Stage 4에서 차트 asset을 렌더링합니다.
+// ko: SVG, canvas, script, Chart.js 또는 다른 차트 렌더링 마크업으로 차트를 렌더링하지 마세요.
+// ko: 푸터는 정상 문서 흐름에 있어야 합니다.
+// ko: 푸터 또는 하단 고지 문구에 position:absolute나 position:fixed를 사용하지 마세요.
+// ko: 마지막 섹션이 푸터와 겹치지 않도록 하단 안전 영역을 확보하세요.
+// ko: 콘텐츠가 길면 푸터 텍스트와 겹치지 말고 간격을 줄이거나 정상 페이지 흐름으로 이어가세요.
+[
+  "Return one complete HTML document.",
+  "Match the template preview image as closely as possible.",
+  "Use sourceHtml, styleCandidates, and template preview image only as visual references.",
+  "Use supplied Stage 2 components as the only source for report data, table labels, values, and prose.",
+  "Do not copy data labels, table values, or prose from template sourceHtml or preview image.",
+  "Generate document-local CSS in a non-empty <style> block.",
+  "Do not use external CSS files, @import, external fonts, or external network resources.",
+  "Stage 3 CSS must cover A4 portrait layout, header/footer/brand, section spacing, typography, table/list/article styling, chart placeholder space, and bottom safe area.",
+  "Preserve every Stage 2 component id.",
+  "Do not change source numbers or source wording.",
+  "Do not reference external network resources.",
+  "Do not render charts in Stage 3.",
+  "Keep chart components as data-chart-placeholder containers only; Stage 4 renders chart assets.",
+  "Do not render charts using SVG, canvas, script, Chart.js, or other chart rendering markup.",
+  "Footer must stay in normal document flow.",
+  "Do not use position:absolute or position:fixed for footer or bottom disclaimers.",
+  "Reserve a bottom safe area so the final section never overlaps the footer.",
+  "If content is long, reduce spacing or continue the normal page flow instead of overlapping footer text."
+]

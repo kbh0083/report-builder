@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from collections.abc import Callable
@@ -10,13 +11,17 @@ from typing import Any
 from uuid import uuid4
 
 from .artifact_logger import ArtifactLogger
+from .chart_renderer import ChartRenderer
 from .llm import LlmAdapter, NovitaLlmAdapter
+from .llm_call_logger import LlmCallLogger
 from .models import ReportJobRequest, Stage2Component
 from .repository import ReportRepository
+from .renderer import HtmlRenderer, PlaywrightRenderer
 from .settings import load_llm_settings, parse_env_file
 from .stage1_template import Stage1TemplateService
 from .stage2_components import Stage2ComponentService
 from .stage3_layout import Stage3LayoutService, stage3_component_html
+from .version_store import VersionStore
 
 
 ProgressCallback = Callable[[dict[str, object]], None]
@@ -26,13 +31,17 @@ def run_with_artifact_logging(
     request: ReportJobRequest,
     backend_root: str | Path | None = None,
     llm_adapter: LlmAdapter | None = None,
+    renderer: HtmlRenderer | None = None,
+    chart_renderer: ChartRenderer | None = None,
     progress_callback: ProgressCallback | None = None,
-) -> dict[str, str]:
+) -> dict[str, object]:
     backend_path = Path(backend_root) if backend_root else Path(__file__).resolve().parents[1]
     workspace_root = backend_path.parent
     job_id = _new_job_id()
     logger = ArtifactLogger(backend_path / "log", job_id, secrets=_collect_secret_values(backend_path))
-    active_llm_adapter = llm_adapter or _load_default_llm_adapter(backend_path, request)
+    llm_call_logger = LlmCallLogger(logger)
+    active_llm_adapter = llm_adapter or _load_default_llm_adapter(backend_path, request, llm_call_logger)
+    active_llm_adapter = _with_llm_call_logging(active_llm_adapter, llm_call_logger)
     active_llm_adapter = _with_llm_progress(active_llm_adapter, job_id, progress_callback)
 
     repository = ReportRepository(workspace_root)
@@ -69,19 +78,28 @@ def run_with_artifact_logging(
         )
         logger.write_json("03_layout/prompt_input.json", prompt_input)
 
+        template_image_data_url = _template_image_data_url(workspace_root, template_context) if layout_service else None
         report_draft_html = (
-            layout_service.generate_report_draft(prompt_input, components)
+            layout_service.generate_report_draft(prompt_input, components, template_image_data_url=template_image_data_url)
             if layout_service
             else _build_report_draft_html(dataset.baseData["product"]["productName"], components)
         )
         draft_path = logger.write_html("03_layout/report_draft.html", report_draft_html)
 
     with _stage(progress_callback, job_id, "04_render"):
+        active_renderer = renderer or PlaywrightRenderer()
+        active_chart_renderer = chart_renderer or ChartRenderer()
+        chart_html = active_chart_renderer.render_and_inject(report_draft_html, components)
+        chart_component_id = _performance_chart_component_id(components)
+        version_store = VersionStore(_resolve_output_root(backend_path, request.outputDir))
+        report_version = version_store.create_version(job_id, 1, chart_html, active_renderer)
         logger.write_json(
             "04_render/render_result.json",
             {
-                "status": "skipped",
-                "reason": "Renderer is implemented in a later CLI stage.",
+                **asdict(report_version),
+                "status": "rendered",
+                "chartRendered": True,
+                "chartComponentId": chart_component_id,
                 "reportDraftPath": str(draft_path),
             },
         )
@@ -103,6 +121,9 @@ def run_with_artifact_logging(
                 "status": "logged",
                 "jobId": job_id,
                 "reportDraftPath": str(draft_path),
+                "version": report_version.version,
+                "reportHtmlPath": report_version.htmlPath,
+                "previewImagePath": report_version.previewImagePath,
             },
         )
 
@@ -110,6 +131,9 @@ def run_with_artifact_logging(
         "event": "job.logged",
         "jobId": job_id,
         "logPath": str(logger.job_dir),
+        "version": report_version.version,
+        "reportHtmlPath": report_version.htmlPath,
+        "previewImagePath": report_version.previewImagePath,
     }
 
 
@@ -128,10 +152,30 @@ def _collect_secret_values(backend_root: Path) -> list[str]:
     return [secret for secret in secrets if secret]
 
 
-def _load_default_llm_adapter(backend_root: Path, request: ReportJobRequest) -> LlmAdapter | None:
+def _resolve_output_root(backend_path: Path, output_dir: str) -> Path:
+    output_path = Path(output_dir)
+    if output_path.is_absolute():
+        return output_path
+    return backend_path / output_path
+
+
+def _load_default_llm_adapter(
+    backend_root: Path,
+    request: ReportJobRequest,
+    llm_call_logger: LlmCallLogger,
+) -> LlmAdapter | None:
     if request.componentMode == "novita" or request.verificationMode == "novita":
-        return NovitaLlmAdapter(load_llm_settings(backend_root / ".env"))
+        return NovitaLlmAdapter(load_llm_settings(backend_root / ".env"), llm_call_logger=llm_call_logger)
     return None
+
+
+def _with_llm_call_logging(
+    llm_adapter: LlmAdapter | None,
+    llm_call_logger: LlmCallLogger,
+) -> LlmAdapter | None:
+    if isinstance(llm_adapter, NovitaLlmAdapter) and llm_adapter.llm_call_logger is None:
+        llm_adapter.llm_call_logger = llm_call_logger
+    return llm_adapter
 
 
 def _with_llm_progress(
@@ -165,16 +209,23 @@ class LlmProgressAdapter:
             response_metadata=self._stage2_response_metadata,
         )
 
-    def generate_stage3_layout(self, prompt_input: dict[str, Any]) -> str:
+    def generate_stage3_layout(self, prompt_input: dict[str, Any], template_image_data_url: str | None = None) -> str:
         components = prompt_input.get("components", [])
+        correction = prompt_input.get("correction")
+        correction_attempt = correction.get("attempt") if isinstance(correction, dict) else None
         request_metadata = {
             "componentCount": len(components) if isinstance(components, list) else 0,
+            "templateImageAttached": bool(template_image_data_url),
+            "correctionAttempt": correction_attempt if isinstance(correction_attempt, int) else None,
         }
         return self._tracked_call(
             stage="03_layout",
             task="stage3_layout",
             request_metadata=request_metadata,
-            call=lambda: self.delegate.generate_stage3_layout(prompt_input),
+            call=lambda: self.delegate.generate_stage3_layout(
+                prompt_input,
+                template_image_data_url=template_image_data_url,
+            ),
             response_metadata=self._stage3_response_metadata,
         )
 
@@ -192,7 +243,7 @@ class LlmProgressAdapter:
         except Exception as exc:
             self._emit("llm.response.failed", stage, task, request_metadata | self._error_metadata(exc))
             raise
-        self._emit("llm.response.completed", stage, task, response_metadata(result))
+        self._emit("llm.response.completed", stage, task, request_metadata | response_metadata(result))
         return result
 
     def _emit(self, event: str, stage: str, task: str, metadata: dict[str, object]) -> None:
@@ -261,6 +312,13 @@ def _write_component_html(logger: ArtifactLogger, components: list[Stage2Compone
         logger.write_html(f"02_components/html/{component.componentKey}.html", component.html)
 
 
+def _performance_chart_component_id(components: list[Stage2Component]) -> str:
+    for component in components:
+        if component.componentKey == "performance_chart":
+            return component.componentId
+    return ""
+
+
 def _build_offline_prompt_input(
     template_context,
     dataset,
@@ -292,11 +350,41 @@ def _build_report_draft_html(product_name: str, components: list[Stage2Component
         "<head>\n"
         '  <meta charset="utf-8">\n'
         f"  <title>{escaped_product_name}</title>\n"
+        "  <style>\n"
+        "    * { box-sizing: border-box; }\n"
+        "    @page { size: A4 portrait; margin: 0; }\n"
+        "    body { margin: 0; background: #ededed; color: #111; font-family: \"Apple SD Gothic Neo\", \"Malgun Gothic\", Arial, sans-serif; line-height: 1.32; }\n"
+        "    main[data-report-product] { width: 210mm; min-height: 297mm; margin: 24px auto; padding: 12mm 10mm 14mm; background: #fff; display: grid; gap: 6mm; }\n"
+        "    section, article { break-inside: avoid; }\n"
+        "    h2 { margin: 0 0 3mm; color: #0258ff; font-size: 5mm; }\n"
+        "    table { width: 100%; border-collapse: collapse; font-size: 3.1mm; }\n"
+        "    th { background: #2d66f3; color: #fff; }\n"
+        "    th, td { border: 0.25mm solid #c4c4c4; padding: 1.5mm 2mm; }\n"
+        "    ul, ol, p { margin: 0 0 2.5mm; }\n"
+        "    [data-chart-placeholder] { min-height: 58mm; border: 0.35mm dashed #8e8e8e; background: #f7f9ff; }\n"
+        "    footer { margin-top: 8mm; padding-top: 3mm; border-top: 0.25mm solid #c4c4c4; font-size: 2.6mm; color: #555; }\n"
+        "  </style>\n"
         "</head>\n"
         "<body>\n"
         f"  <main data-report-product=\"{escaped_product_name}\">\n"
         f"{body}\n"
+        "    <footer>본 자료는 정보 제공 목적의 예시 리포트이며 투자 권유가 아닙니다.</footer>\n"
         "  </main>\n"
         "</body>\n"
         "</html>\n"
     )
+
+
+def _template_image_data_url(workspace_root: Path, template_context) -> str:
+    image_path = workspace_root / template_context.previewImage
+    encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    return f"data:{_image_mime_type(image_path)};base64,{encoded}"
+
+
+def _image_mime_type(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if suffix == ".webp":
+        return "image/webp"
+    return "image/png"

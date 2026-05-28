@@ -4,13 +4,14 @@ from collections.abc import Sequence
 
 from .logging_flow import event_to_stdout_line, run_with_artifact_logging
 from .models import ReportJobRequest
+from .renderer import PlaceholderRenderer, PlaywrightRenderer
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m report_engine",
         description="ETF report engine CLI",
-        epilog="run options include --dataset-id, --template-id, --month-id, --component-mode, --layout-mode, --verification-mode, --max-iterations, --output-dir",
+        epilog="run options include --dataset-id, --template-id, --month-id, --component-mode, --layout-mode, --verification-mode, --renderer-mode, --max-iterations, --output-dir",
     )
     subparsers = parser.add_subparsers(dest="command")
     run_parser = subparsers.add_parser("run", help="run a report generation job")
@@ -20,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--component-mode", choices=["sample", "novita"], default="sample")
     run_parser.add_argument("--layout-mode", choices=["novita"], default="novita")
     run_parser.add_argument("--verification-mode", choices=["manual-pass", "novita"], default="manual-pass")
+    run_parser.add_argument("--renderer-mode", choices=["playwright", "placeholder"], default="playwright")
     run_parser.add_argument("--max-iterations", type=int, default=3)
     run_parser.add_argument("--output-dir", default="runs")
     return parser
@@ -43,7 +45,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             outputDir=args.output_dir,
         )
         try:
-            print(event_to_stdout_line(run_with_artifact_logging(request, progress_callback=_print_progress)))
+            print(
+                event_to_stdout_line(
+                    run_with_artifact_logging(
+                        request,
+                        renderer=_build_renderer(args.renderer_mode),
+                        progress_callback=_print_progress,
+                    )
+                )
+            )
             return 0
         except Exception as exc:
             print(json.dumps({"event": "job.failed", "detail": str(exc)}, ensure_ascii=False))
@@ -54,3 +64,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _print_progress(event: dict[str, object]) -> None:
     print(event_to_stdout_line(event), flush=True)
+
+
+def _build_renderer(renderer_mode: str):
+    if renderer_mode == "placeholder":
+        return PlaceholderRenderer()
+    return PlaywrightRenderer()

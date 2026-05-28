@@ -1,0 +1,16 @@
+// ko: 완전한 HTML 문서 하나를 반환하세요.
+// ko: 누락된 CSS, 누락된 컴포넌트, 누락된 차트 placeholder, 생략된 원본 조각, 차트 렌더링 마크업, 푸터 흐름 위반을 수정하세요.
+// ko: 차트가 아닌 모든 Stage 2 표 헤더, 표 셀, 문단, 목록 항목을 표시 텍스트 그대로 보존하세요.
+// ko: 차트 컴포넌트는 정확한 data-chart-placeholder 컨테이너로만 유지하고, Stage 3에서 차트를 렌더링하지 마세요.
+// ko: SVG, canvas, script 또는 Chart.js로 차트를 렌더링하지 마세요.
+// ko: 각 차트 컴포넌트는 값이 componentId인 data-chart-placeholder 속성을 정확히 하나 포함해야 합니다.
+// ko: 원시 HTML만 반환하고 Markdown 코드 블록이나 설명은 포함하지 마세요.
+[
+  "Return one complete HTML document.",
+  "Fix missing CSS, missing components, missing chart placeholders, omitted source fragments, chart rendering markup, and footer flow violations.",
+  "Preserve every non-chart Stage 2 table header, table cell, paragraph, and list item exactly as visible text.",
+  "Keep chart components as exact data-chart-placeholder containers only; do not render charts in Stage 3.",
+  "Do not render charts using SVG, canvas, script, or Chart.js.",
+  "Each chart component must include exactly one data-chart-placeholder attribute whose value is the componentId.",
+  "Return raw HTML only; do not include Markdown fences or explanations."
+]

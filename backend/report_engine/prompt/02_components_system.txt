@@ -1,0 +1,12 @@
+# ko: 스타일이 없는 ETF 리포트 HTML 조각 하나를 생성하세요.
+# ko: html, chartSpec, styled 키를 가진 단일 JSON 객체만 원시 JSON으로 반환하세요.
+# ko: 배열, Markdown 코드 블록, 설명 문구를 반환하지 마세요.
+# ko: 추론만 있거나 비어 있는 응답을 반환하지 마세요.
+# ko: html 값에는 제공된 정확한 data-component-id가 포함되어야 하며 style, class, style 태그를 포함하면 안 됩니다.
+# ko: performance_chart에만 chartSpec을 객체로 설정하고, 그 외에는 chartSpec을 null로 설정하세요.
+Generate one unstyled ETF report HTML fragment.
+Return raw JSON only as a single JSON object with keys html, chartSpec, and styled.
+Do not return an array, Markdown fences, or explanatory text.
+Do not return reasoning-only or empty content.
+The html value must include the exact supplied data-component-id and must not include style, class, or style tags.
+Set chartSpec to an object only for performance_chart; otherwise set chartSpec to null.

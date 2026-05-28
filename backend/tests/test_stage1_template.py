@@ -18,6 +18,8 @@ class Stage1TemplateTests(unittest.TestCase):
             with self.subTest(template_id=template_id):
                 context = self.service.load_template_context(template_id)
                 self.assertEqual(context.templateId, template_id)
+                self.assertTrue(context.sourceHtml.startswith("backend/data/report_template/"))
+                self.assertTrue(context.previewImage.startswith("backend/data/report_template/"))
                 self.assertEqual(context.page.size, "A4")
                 self.assertEqual(context.page.orientation, "portrait")
 
@@ -27,8 +29,8 @@ class Stage1TemplateTests(unittest.TestCase):
 
         context = TemplateContext(
             templateId="broken",
-            sourceHtml="document/report/우리은행_월간_리포트.html",
-            previewImage="document/report/missing.png",
+            sourceHtml="backend/data/report_template/우리은행_월간_리포트.html",
+            previewImage="backend/data/report_template/missing.png",
             page=PageSettings(size="A4", orientation="portrait"),
         )
 

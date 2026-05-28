@@ -1,41 +1,65 @@
+import base64
+import binascii
 import json
 import re
+import time
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 
 import requests
 
 from .errors import ErrorCode, ReportEngineError
+from .prompt_store import PromptStore
 from .settings import LlmSettings
+
+
+@dataclass(frozen=True)
+class LlmApiResponse:
+    content: str
+    finish_reason: str | None
+    usage: dict[str, Any] | None
 
 
 class LlmAdapter(Protocol):
     def generate_stage2_component(self, component_source: dict[str, Any]) -> dict[str, Any]:
         """Return the LLM-generated Stage 2 fields for one component source."""
 
-    def generate_stage3_layout(self, prompt_input: dict[str, Any]) -> str:
+    def generate_stage3_layout(self, prompt_input: dict[str, Any], template_image_data_url: str | None = None) -> str:
         """Return a single HTML report draft for Stage 3."""
 
 
 class NovitaLlmAdapter:
-    def __init__(self, settings: LlmSettings, session: Any | None = None):
+    def __init__(
+        self,
+        settings: LlmSettings,
+        session: Any | None = None,
+        llm_call_logger: Any | None = None,
+        prompt_store: PromptStore | None = None,
+    ):
         self.settings = settings
         self.session = session
+        self.llm_call_logger = llm_call_logger
+        self.prompt_store = prompt_store or PromptStore()
 
     def generate_stage2_component(self, component_source: dict[str, Any]) -> dict[str, Any]:
         def generate() -> dict[str, Any]:
-            content = self._post_chat(
+            def normalize_stage2(content: str) -> dict[str, Any]:
+                result = self._normalize_stage2_component_content(content)
+                if not isinstance(result, dict):
+                    raise ReportEngineError(
+                        ErrorCode.LLM_INVALID_JSON,
+                        "LLM response JSON must be an object",
+                        stage="llm",
+                    )
+                return result
+
+            return self._post_chat(
                 [
                     {
                         "role": "system",
-                        "content": (
-                            "Generate one unstyled ETF report HTML fragment. "
-                            "Return raw JSON only as a single JSON object with keys html, chartSpec, and styled. "
-                            "Do not return an array, Markdown fences, or explanatory text. "
-                            "Do not return reasoning-only or empty content. "
-                            "The html value must include the exact supplied data-component-id and must not include style, class, or style tags. "
-                            "Set chartSpec to an object only for performance_chart; otherwise set chartSpec to null."
-                        ),
+                        "content": self.prompt_store.read_text("02_components_system.txt"),
                     },
                     {
                         "role": "user",
@@ -49,49 +73,43 @@ class NovitaLlmAdapter:
                     },
                 ],
                 response_format={"type": "json_object"},
+                stage="02_components",
+                task="stage2_component",
+                label=str(component_source.get("componentKey") or "component"),
+                transform=normalize_stage2,
             )
-            result = self._normalize_stage2_component_content(content)
-            if not isinstance(result, dict):
-                raise ReportEngineError(
-                    ErrorCode.LLM_INVALID_JSON,
-                    "LLM response JSON must be an object",
-                    stage="llm",
-                )
-            return result
 
         return self._retry_invalid_json(generate)
 
-    def generate_stage3_layout(self, prompt_input: dict[str, Any]) -> str:
+    def generate_stage3_layout(self, prompt_input: dict[str, Any], template_image_data_url: str | None = None) -> str:
         return self._post_chat(
             [
                 {
                     "role": "system",
-                    "content": (
-                        "Generate a single complete A4 portrait HTML document. "
-                        "Return raw HTML only and start exactly with <!doctype html>. "
-                        "Do not wrap the answer in Markdown fences or add explanations. "
-                        "Do not render charts in this stage; preserve data-chart-placeholder containers only. "
-                        "Do not create SVG, canvas, script, Chart.js, or other chart rendering markup. "
-                        "Keep footer and bottom disclaimers in normal document flow; never use position:absolute or position:fixed for them. "
-                        "Reserve a bottom safe area so the final section never overlaps footer text. "
-                        "Preserve every supplied Stage 2 component id and do not change source values."
-                    ),
+                    "content": self.prompt_store.read_text("03_layout_system.txt"),
                 },
                 {
                     "role": "user",
-                    "content": json.dumps(
-                        {
-                            "task": "stage3_layout",
-                            "promptInput": prompt_input,
-                        },
-                        ensure_ascii=False,
-                    ),
+                    "content": self._stage3_user_content(prompt_input, template_image_data_url),
                 },
             ],
             response_format=None,
-        ).strip()
+            stage="03_layout",
+            task="stage3_layout",
+            label="layout",
+            transform=lambda content: content.strip(),
+        )
 
-    def _post_chat(self, messages: list[dict[str, str]], response_format: dict[str, str] | None) -> str:
+    def _post_chat(
+        self,
+        messages: list[dict[str, Any]],
+        response_format: dict[str, str] | None,
+        *,
+        stage: str,
+        task: str,
+        label: str,
+        transform: Callable[[str], Any],
+    ) -> Any:
         payload: dict[str, Any] = {
             "model": self.settings.model,
             "messages": messages,
@@ -109,9 +127,39 @@ class NovitaLlmAdapter:
         if response_format is not None:
             payload["response_format"] = response_format
 
-        return self._post_with_retries(payload)
+        started_at = _now_iso()
+        started = time.perf_counter()
+        api_response: LlmApiResponse | None = None
+        try:
+            api_response = self._post_with_retries(payload)
+            result = transform(api_response.content)
+        except Exception as exc:
+            self._write_llm_call_log(
+                stage=stage,
+                task=task,
+                label=label,
+                status="failed",
+                started_at=started_at,
+                started=started,
+                request=payload,
+                response=api_response,
+                error=exc,
+            )
+            raise
+        self._write_llm_call_log(
+            stage=stage,
+            task=task,
+            label=label,
+            status="completed",
+            started_at=started_at,
+            started=started,
+            request=payload,
+            response=api_response,
+            error=None,
+        )
+        return result
 
-    def _post_with_retries(self, payload: dict[str, Any]) -> str:
+    def _post_with_retries(self, payload: dict[str, Any]) -> LlmApiResponse:
         max_attempts = max(1, self.settings.retryAttempts + 1)
         last_error: ReportEngineError | None = None
         for attempt in range(1, max_attempts + 1):
@@ -125,8 +173,9 @@ class NovitaLlmAdapter:
             raise last_error
         raise ReportEngineError(ErrorCode.CONFIG_INVALID, "LLM request failed", stage="llm")
 
-    def _post_once(self, payload: dict[str, Any]) -> str:
+    def _post_once(self, payload: dict[str, Any]) -> LlmApiResponse:
         session = self.session or requests.Session()
+        response: Any | None = None
         try:
             response = session.post(
                 self._chat_completions_url(),
@@ -139,27 +188,34 @@ class NovitaLlmAdapter:
             )
             status_code = getattr(response, "status_code", 200)
             if status_code == 429 or status_code >= 500:
-                raise self._retriable_config_error()
+                raise self._retriable_config_error(self._response_text(response))
             response.raise_for_status()
         except requests.exceptions.Timeout as exc:
             raise ReportEngineError(ErrorCode.LLM_TIMEOUT, "LLM request timed out", stage="llm") from exc
         except requests.exceptions.ConnectionError as exc:
             raise self._retriable_config_error() from exc
         except requests.exceptions.RequestException as exc:
-            raise ReportEngineError(ErrorCode.CONFIG_INVALID, "LLM request failed", stage="llm") from exc
+            error = ReportEngineError(ErrorCode.CONFIG_INVALID, "LLM request failed", stage="llm")
+            self._attach_raw_response_content(error, self._response_text(response))
+            raise error from exc
         finally:
             if self.session is None:
                 session.close()
 
         try:
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            content = choice["message"]["content"]
+            finish_reason = choice.get("finish_reason")
+            usage = data.get("usage")
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise ReportEngineError(
+            error = ReportEngineError(
                 ErrorCode.LLM_INVALID_JSON,
                 "LLM response envelope was invalid",
                 stage="llm",
-            ) from exc
+            )
+            self._attach_raw_response_content(error, self._response_text(response))
+            raise error from exc
         if not isinstance(content, str):
             raise ReportEngineError(
                 ErrorCode.LLM_INVALID_JSON,
@@ -172,7 +228,141 @@ class NovitaLlmAdapter:
                 "LLM response content was empty",
                 stage="llm",
             )
-        return content
+        return LlmApiResponse(
+            content=content,
+            finish_reason=finish_reason if isinstance(finish_reason, str) else None,
+            usage=usage if isinstance(usage, dict) else None,
+        )
+
+    def _write_llm_call_log(
+        self,
+        *,
+        stage: str,
+        task: str,
+        label: str,
+        status: str,
+        started_at: str,
+        started: float,
+        request: dict[str, Any],
+        response: LlmApiResponse | None,
+        error: Exception | None,
+    ) -> None:
+        if self.llm_call_logger is None:
+            return
+        completed_at = _now_iso()
+        duration_ms = max(0, round((time.perf_counter() - started) * 1000))
+        self.llm_call_logger.write_call(
+            stage=stage,
+            task=task,
+            label=label,
+            status=status,
+            started_at=started_at,
+            completed_at=completed_at,
+            duration_ms=duration_ms,
+            request=self._logged_request_payload(request),
+            response=self._logged_response_payload(response) or self._logged_error_response_payload(error),
+            token_usage=response.usage if response is not None else None,
+            error=self._logged_error_payload(error),
+        )
+
+    @classmethod
+    def _logged_request_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        keys = [
+            "model",
+            "messages",
+            "temperature",
+            "top_p",
+            "top_k",
+            "min_p",
+            "presence_penalty",
+            "repetition_penalty",
+            "max_tokens",
+            "stream",
+            "enable_thinking",
+            "separate_reasoning",
+            "response_format",
+        ]
+        logged = {key: payload[key] for key in keys if key in payload}
+        if "messages" in logged:
+            logged["messages"] = cls._logged_messages(logged["messages"])
+        return logged
+
+    @classmethod
+    def _logged_messages(cls, messages: Any) -> Any:
+        if not isinstance(messages, list):
+            return messages
+        return [cls._logged_message(message) for message in messages]
+
+    @classmethod
+    def _logged_message(cls, message: Any) -> Any:
+        if not isinstance(message, dict):
+            return message
+        logged = dict(message)
+        content = logged.get("content")
+        if isinstance(content, list):
+            logged["content"] = [cls._logged_message_content_item(item) for item in content]
+        return logged
+
+    @classmethod
+    def _logged_message_content_item(cls, item: Any) -> Any:
+        if not isinstance(item, dict):
+            return item
+        if item.get("type") != "image_url":
+            return item
+        image_url = item.get("image_url")
+        if not isinstance(image_url, dict):
+            return item
+        logged_image_url = dict(image_url)
+        metadata = cls._image_data_url_metadata(logged_image_url.get("url"))
+        logged_image_url["url"] = "<image data redacted>"
+        logged_image_url.update(metadata)
+        return {
+            **item,
+            "image_url": logged_image_url,
+        }
+
+    @staticmethod
+    def _image_data_url_metadata(url: Any) -> dict[str, Any]:
+        if not isinstance(url, str):
+            return {}
+        match = re.match(r"^data:([^;,]+);base64,(.*)$", url, flags=re.DOTALL)
+        if not match:
+            return {}
+        encoded = match.group(2)
+        metadata: dict[str, Any] = {"mimeType": match.group(1)}
+        try:
+            metadata["base64Bytes"] = len(base64.b64decode(encoded, validate=True))
+        except (binascii.Error, ValueError):
+            metadata["base64Chars"] = len(encoded)
+        return metadata
+
+    @staticmethod
+    def _logged_response_payload(response: LlmApiResponse | None) -> dict[str, Any] | None:
+        if response is None:
+            return None
+        return {
+            "content": response.content,
+            "finishReason": response.finish_reason,
+        }
+
+    @staticmethod
+    def _logged_error_response_payload(error: Exception | None) -> dict[str, Any] | None:
+        raw_content = getattr(error, "llm_response_content", None)
+        if not isinstance(raw_content, str):
+            return None
+        return {
+            "content": raw_content,
+            "finishReason": None,
+        }
+
+    @staticmethod
+    def _logged_error_payload(error: Exception | None) -> dict[str, Any] | None:
+        if error is None:
+            return None
+        return {
+            "errorType": type(error).__name__,
+            "errorCode": getattr(getattr(error, "code", None), "value", None),
+        }
 
     def _retry_invalid_json(self, call: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         max_attempts = max(1, self.settings.parseRetryAttempts + 1)
@@ -193,10 +383,21 @@ class NovitaLlmAdapter:
         return exc.code == ErrorCode.LLM_TIMEOUT or bool(getattr(exc, "retriable", False))
 
     @staticmethod
-    def _retriable_config_error() -> ReportEngineError:
+    def _retriable_config_error(response_text: str | None = None) -> ReportEngineError:
         error = ReportEngineError(ErrorCode.CONFIG_INVALID, "LLM request failed", stage="llm")
+        NovitaLlmAdapter._attach_raw_response_content(error, response_text)
         setattr(error, "retriable", True)
         return error
+
+    @staticmethod
+    def _attach_raw_response_content(error: ReportEngineError, response_text: str | None) -> None:
+        if isinstance(response_text, str) and response_text:
+            setattr(error, "llm_response_content", response_text)
+
+    @staticmethod
+    def _response_text(response: Any | None) -> str | None:
+        text = getattr(response, "text", None)
+        return text if isinstance(text, str) else None
 
     def _normalize_stage2_component_content(self, content: str) -> Any:
         value = self._parse_stage2_component_content(content)
@@ -265,3 +466,23 @@ class NovitaLlmAdapter:
         if base_url.endswith("/v1"):
             return f"{base_url}/chat/completions"
         return f"{base_url}/v1/chat/completions"
+
+    @staticmethod
+    def _stage3_user_content(prompt_input: dict[str, Any], template_image_data_url: str | None) -> Any:
+        text = json.dumps(
+            {
+                "task": "stage3_layout",
+                "promptInput": prompt_input,
+            },
+            ensure_ascii=False,
+        )
+        if not template_image_data_url:
+            return text
+        return [
+            {"type": "text", "text": text},
+            {"type": "image_url", "image_url": {"url": template_image_data_url}},
+        ]
+
+
+def _now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="milliseconds")
