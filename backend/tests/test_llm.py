@@ -6,6 +6,17 @@ from unittest.mock import patch
 
 
 class NovitaLlmAdapterTests(unittest.TestCase):
+    def test_default_stage5_requirements_compare_generated_preview_to_template_preview_tone(self):
+        from report_engine.prompt_store import PromptStore
+
+        requirements = PromptStore().read_json("05_verification_requirements.json")
+
+        combined = " ".join(requirements).lower()
+        self.assertIn("template preview image", combined)
+        self.assertIn("brand color", combined)
+        self.assertIn("visual tone", combined)
+        self.assertIn("do not fail solely because chart type", combined)
+
     def test_posts_openai_compatible_request_without_streaming(self):
         from report_engine.llm import NovitaLlmAdapter
         from report_engine.settings import LlmSettings
@@ -504,6 +515,242 @@ class NovitaLlmAdapterTests(unittest.TestCase):
         self.assertEqual(payload["request"]["messages"][1]["content"][1]["image_url"]["url"], "<image data redacted>")
         self.assertEqual(payload["request"]["messages"][1]["content"][1]["image_url"]["mimeType"], "image/png")
         self.assertEqual(payload["request"]["messages"][1]["content"][1]["image_url"]["base64Bytes"], 8)
+
+    def test_stage5_verification_sends_preview_image_and_html_as_multimodal_json(self):
+        from report_engine.llm import NovitaLlmAdapter
+        from report_engine.models import PageSettings, ReportVersion, TemplateContext
+        from report_engine.prompt_store import PromptStore
+        from report_engine.settings import LlmSettings
+
+        session = FakeSession(FakeResponse('{"passed": true, "issues": []}'))
+        settings = LlmSettings(
+            model="qwen/test",
+            baseUrl="https://api.novita.ai/openai",
+            apiKey="secret-key-123",
+            temperature=0.0,
+            maxTokens=4096,
+            timeoutSeconds=120,
+            chunkSizeChars=12000,
+            stageBatchSize=12,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_prompt_file(root, "05_verification_system.txt", "# ko: 검증 지시\nReturn one JSON object.")
+            _write_prompt_file(root, "05_verification_requirements.json", '// ko: 검증 요구사항\n["Check overlap."]\n')
+            html_path = root / "report.html"
+            preview_path = root / "preview.png"
+            template_path = root / "template.png"
+            html_path.write_text("<!doctype html><html><body><h1>Report</h1></body></html>", encoding="utf-8")
+            preview_path.write_bytes(b"preview-bytes")
+            template_path.write_bytes(b"template-bytes")
+            version = ReportVersion(
+                jobId="job_stage5",
+                version=1,
+                htmlPath=str(html_path),
+                previewImagePath=str(preview_path),
+                status="verifying",
+                createdAt="2026-05-28T00:00:00+09:00",
+            )
+            template_context = TemplateContext(
+                templateId="tpl_kb_monthly_guidebook",
+                previewImage=str(template_path),
+                page=PageSettings(size="A4", orientation="portrait"),
+                name="국민은행 월간 가이드북",
+            )
+
+            result = NovitaLlmAdapter(
+                settings,
+                session=session,
+                prompt_store=PromptStore(root),
+            ).verify_report_version(version, template_context=template_context)
+
+        self.assertEqual(result, {"passed": True, "issues": []})
+        self.assertEqual(session.last_payload["response_format"], {"type": "json_object"})
+        self.assertEqual(session.last_payload["messages"][0]["content"], "Return one JSON object.")
+        user_content = session.last_payload["messages"][1]["content"]
+        self.assertIsInstance(user_content, list)
+        text_payload = json.loads(user_content[0]["text"])
+        self.assertEqual(text_payload["task"], "stage5_verification")
+        self.assertEqual(text_payload["reportVersion"]["jobId"], "job_stage5")
+        self.assertEqual(text_payload["reportVersion"]["version"], 1)
+        self.assertEqual(text_payload["template"]["templateId"], "tpl_kb_monthly_guidebook")
+        self.assertEqual(text_payload["template"]["previewImage"], str(template_path))
+        self.assertEqual(text_payload["reportHtml"], "<!doctype html><html><body><h1>Report</h1></body></html>")
+        self.assertEqual(text_payload["requirements"], ["Check overlap."])
+        self.assertEqual(user_content[1]["type"], "image_url")
+        self.assertEqual(user_content[1]["label"], "generatedPreviewImage")
+        self.assertTrue(user_content[1]["image_url"]["url"].startswith("data:image/png;base64,"))
+        self.assertEqual(user_content[2]["type"], "image_url")
+        self.assertEqual(user_content[2]["label"], "templatePreviewImage")
+        self.assertTrue(user_content[2]["image_url"]["url"].startswith("data:image/png;base64,"))
+
+    def test_stage5_verification_retries_invalid_json_then_accepts_valid_result(self):
+        from report_engine.llm import NovitaLlmAdapter
+        from report_engine.models import ReportVersion
+        from report_engine.prompt_store import PromptStore
+        from report_engine.settings import LlmSettings
+
+        session = SequenceSession([
+            FakeResponse("not json"),
+            FakeResponse(
+                '{"passed": false, "issues": [{"type": "overlap", "severity": "major", "description": "Footer overlaps text."}], "revisionInstruction": "Increase bottom safe area."}'
+            ),
+        ])
+        settings = LlmSettings(
+            model="qwen/test",
+            baseUrl="https://api.novita.ai/openai",
+            apiKey="secret-key-123",
+            temperature=0.0,
+            maxTokens=4096,
+            timeoutSeconds=120,
+            chunkSizeChars=12000,
+            stageBatchSize=12,
+            parseRetryAttempts=1,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_prompt_file(root, "05_verification_system.txt", "# ko: 검증 지시\nReturn one JSON object.")
+            _write_prompt_file(root, "05_verification_requirements.json", '// ko: 검증 요구사항\n["Check overlap."]\n')
+            html_path = root / "report.html"
+            preview_path = root / "preview.png"
+            html_path.write_text("<!doctype html><html><body>Report</body></html>", encoding="utf-8")
+            preview_path.write_bytes(b"preview-bytes")
+            version = ReportVersion(
+                jobId="job_stage5",
+                version=1,
+                htmlPath=str(html_path),
+                previewImagePath=str(preview_path),
+                status="verifying",
+                createdAt="2026-05-28T00:00:00+09:00",
+            )
+
+            result = NovitaLlmAdapter(
+                settings,
+                session=session,
+                prompt_store=PromptStore(root),
+            ).verify_report_version(version)
+
+        self.assertEqual(session.post_count, 2)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["issues"][0]["type"], "overlap")
+        self.assertEqual(result["revisionInstruction"], "Increase bottom safe area.")
+
+    def test_stage5_verification_rejects_issue_without_required_schema_fields(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.llm import NovitaLlmAdapter
+        from report_engine.models import ReportVersion
+        from report_engine.prompt_store import PromptStore
+        from report_engine.settings import LlmSettings
+
+        settings = LlmSettings(
+            model="qwen/test",
+            baseUrl="https://api.novita.ai/openai",
+            apiKey="secret-key-123",
+            temperature=0.0,
+            maxTokens=4096,
+            timeoutSeconds=120,
+            chunkSizeChars=12000,
+            stageBatchSize=12,
+            parseRetryAttempts=0,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_prompt_file(root, "05_verification_system.txt", "# ko: 검증 지시\nReturn one JSON object.")
+            _write_prompt_file(root, "05_verification_requirements.json", '// ko: 검증 요구사항\n["Check overlap."]\n')
+            html_path = root / "report.html"
+            preview_path = root / "preview.png"
+            html_path.write_text("<!doctype html><html><body>Report</body></html>", encoding="utf-8")
+            preview_path.write_bytes(b"preview-bytes")
+            version = ReportVersion(
+                jobId="job_stage5",
+                version=1,
+                htmlPath=str(html_path),
+                previewImagePath=str(preview_path),
+                status="verifying",
+                createdAt="2026-05-28T00:00:00+09:00",
+            )
+
+            with self.assertRaises(ReportEngineError) as caught:
+                NovitaLlmAdapter(
+                    settings,
+                    session=FakeSession(FakeResponse('{"passed": false, "issues": [{"code": "overlap"}]}')),
+                    prompt_store=PromptStore(root),
+                ).verify_report_version(version)
+
+        self.assertEqual(caught.exception.code, ErrorCode.LLM_INVALID_JSON)
+        self.assertIn("missing required fields", str(caught.exception))
+
+    def test_logs_stage5_image_metadata_without_base64_payload(self):
+        from report_engine.artifact_logger import ArtifactLogger
+        from report_engine.llm import NovitaLlmAdapter
+        from report_engine.llm_call_logger import LlmCallLogger
+        from report_engine.models import PageSettings, ReportVersion, TemplateContext
+        from report_engine.prompt_store import PromptStore
+        from report_engine.settings import LlmSettings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_prompt_file(root, "05_verification_system.txt", "# ko: 검증 지시\nReturn one JSON object.")
+            _write_prompt_file(root, "05_verification_requirements.json", '// ko: 검증 요구사항\n["Check overlap."]\n')
+            html_path = root / "report.html"
+            preview_path = root / "preview.png"
+            template_path = root / "template.png"
+            html_path.write_text("<!doctype html><html><body>Report</body></html>", encoding="utf-8")
+            preview_path.write_bytes(b"preview-bytes")
+            template_path.write_bytes(b"template-bytes")
+            version = ReportVersion(
+                jobId="job_stage5",
+                version=1,
+                htmlPath=str(html_path),
+                previewImagePath=str(preview_path),
+                status="verifying",
+                createdAt="2026-05-28T00:00:00+09:00",
+            )
+            template_context = TemplateContext(
+                templateId="tpl_kb_monthly_guidebook",
+                previewImage=str(template_path),
+                page=PageSettings(size="A4", orientation="portrait"),
+            )
+            artifact_logger = ArtifactLogger(tmpdir, "job_test", secrets=["secret-key-123"])
+            llm_call_logger = LlmCallLogger(artifact_logger)
+            settings = LlmSettings(
+                model="qwen/test",
+                baseUrl="https://api.novita.ai/openai",
+                apiKey="secret-key-123",
+                temperature=0.0,
+                maxTokens=4096,
+                timeoutSeconds=120,
+                chunkSizeChars=12000,
+                stageBatchSize=12,
+            )
+
+            NovitaLlmAdapter(
+                settings,
+                session=FakeSession(FakeResponse('{"passed": true, "issues": []}')),
+                llm_call_logger=llm_call_logger,
+                prompt_store=PromptStore(root),
+            ).verify_report_version(version, template_context=template_context)
+            log_files = sorted((Path(tmpdir) / "job_test" / "05_verification" / "llm_calls").glob("*.json"))
+            self.assertEqual(len(log_files), 1)
+            payload = json.loads(log_files[0].read_text(encoding="utf-8"))
+
+        combined = json.dumps(payload, ensure_ascii=False)
+        self.assertNotIn("preview-bytes", combined)
+        self.assertNotIn("data:image", combined)
+        self.assertNotIn("secret-key-123", combined)
+        generated_image_item = payload["request"]["messages"][1]["content"][1]
+        template_image_item = payload["request"]["messages"][1]["content"][2]
+        self.assertEqual(generated_image_item["label"], "generatedPreviewImage")
+        self.assertEqual(generated_image_item["image_url"]["url"], "<image data redacted>")
+        self.assertEqual(generated_image_item["image_url"]["mimeType"], "image/png")
+        self.assertEqual(generated_image_item["image_url"]["base64Bytes"], 13)
+        self.assertEqual(template_image_item["label"], "templatePreviewImage")
+        self.assertEqual(template_image_item["image_url"]["url"], "<image data redacted>")
+        self.assertEqual(template_image_item["image_url"]["mimeType"], "image/png")
+        self.assertEqual(template_image_item["image_url"]["base64Bytes"], 14)
 
     def test_default_adapter_uses_fresh_session_per_request_for_parallel_safety(self):
         from report_engine.llm import NovitaLlmAdapter

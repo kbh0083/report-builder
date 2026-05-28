@@ -6,6 +6,21 @@ from pathlib import Path
 
 
 class PlaywrightRendererTests(unittest.TestCase):
+    def test_placeholder_renderer_writes_displayable_page_sized_png(self):
+        from report_engine.renderer import PlaceholderRenderer
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            html_path = Path(tmpdir) / "report.html"
+            preview_path = Path(tmpdir) / "preview.png"
+            html_path.write_text("<!doctype html><html><body>ok</body></html>", encoding="utf-8")
+
+            result = PlaceholderRenderer().render_html_to_png(html_path, preview_path)
+
+            self.assertEqual(result, preview_path)
+            self.assertTrue(preview_path.is_file())
+            self.assertGreater(preview_path.stat().st_size, 1000)
+            self.assertEqual(_png_dimensions(preview_path), (794, 1123))
+
     def test_render_html_to_png_uses_file_url_and_writes_preview(self):
         from report_engine.renderer import PlaywrightRenderer
 
@@ -150,6 +165,14 @@ class FakePage:
             raise RuntimeError("synthetic screenshot failure")
         if self.write_preview:
             Path(kwargs["path"]).write_bytes(b"png")
+
+
+def _png_dimensions(path):
+    data = Path(path).read_bytes()
+    return (
+        int.from_bytes(data[16:20], byteorder="big"),
+        int.from_bytes(data[20:24], byteorder="big"),
+    )
 
 
 if __name__ == "__main__":

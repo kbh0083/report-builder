@@ -48,6 +48,36 @@ class ChartRendererTests(unittest.TestCase):
         self.assertIn("<polyline", rendered)
         self.assertNotIn("data-chart-placeholder", rendered)
 
+    def test_render_and_inject_reuses_chart_colors_from_stage3_css_variables(self):
+        from report_engine.chart_renderer import ChartRenderer
+
+        component = _chart_component(chart_spec=_valid_chart_spec())
+        html = (
+            "<!doctype html><html><head><style>"
+            ":root { --chart-series-1: #b61f2b; --chart-series-2: #777777; }"
+            "</style></head><body>"
+            f'<section data-component-id="{component.componentId}">'
+            f'<div data-chart-placeholder="{component.componentId}"></div>'
+            "</section></body></html>"
+        )
+
+        rendered = ChartRenderer().render_and_inject(html, [component])
+
+        self.assertIn('fill="#b61f2b"', rendered)
+        self.assertIn('fill="#777777"', rendered)
+        self.assertNotIn("#1f5eff", rendered)
+
+    def test_render_and_inject_uses_neutral_fallback_when_chart_css_variables_are_missing(self):
+        from report_engine.chart_renderer import ChartRenderer
+
+        component = _chart_component(chart_spec=_valid_chart_spec())
+
+        rendered = ChartRenderer().render_and_inject(_html_with_placeholder(component.componentId), [component])
+
+        self.assertIn('fill="#4b5563"', rendered)
+        self.assertIn('fill="#9ca3af"', rendered)
+        self.assertNotIn("#1f5eff", rendered)
+
     def test_render_and_inject_rejects_invalid_chart_specs(self):
         from report_engine.chart_renderer import ChartRenderer
         from report_engine.errors import ErrorCode, ReportEngineError

@@ -17,14 +17,17 @@ from report_engine.models import Stage2Component
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_STAGE_FILES = [
+    "events.jsonl",
     "00_request/request.json",
     "01_template/template_context.json",
+    "01_template/selection_context.json",
     "02_components/component_sources.json",
     "02_components/components.json",
     "03_layout/prompt_input.json",
     "03_layout/report_draft.html",
     "04_render/render_result.json",
     "05_verification/verification.json",
+    "05_verification/verification_loop.json",
     "06_final/final_result.json",
 ]
 EXPECTED_COMPONENT_HTML = [
@@ -144,6 +147,108 @@ class CliLoggingTests(unittest.TestCase):
         self.assertEqual(progress_events, expected_progress)
         self.assertEqual(final_event["event"], "job.logged")
 
+    def test_cli_persists_job_scoped_events_with_stage_and_total_durations(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "report_engine",
+                    "run",
+                    "--dataset-id",
+                    "data_kodex_us_sp500",
+                    "--template-id",
+                    "tpl_kb_monthly_guidebook",
+                    "--month-id",
+                    "2026-03",
+                    "--component-mode",
+                    "sample",
+                    "--verification-mode",
+                    "manual-pass",
+                    "--renderer-mode",
+                    "placeholder",
+                    "--output-dir",
+                    str(Path(tmpdir) / "runs"),
+                ],
+                cwd=BACKEND_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        stdout_events = [json.loads(line) for line in result.stdout.strip().splitlines()]
+        final_event = stdout_events[-1]
+        job_dir = Path(final_event["logPath"])
+        self.addCleanup(lambda: shutil.rmtree(job_dir, ignore_errors=True))
+
+        logged_events = [
+            json.loads(line)
+            for line in (job_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(logged_events, stdout_events)
+
+        for event in stdout_events:
+            if event["event"] == "stage.started":
+                self.assertIn("startedAt", event)
+            if event["event"] == "stage.completed":
+                self.assertIn("startedAt", event)
+                self.assertIn("completedAt", event)
+                self.assertGreaterEqual(event["durationMs"], 0)
+
+        final_result = json.loads((job_dir / "06_final" / "final_result.json").read_text(encoding="utf-8"))
+        for payload in (final_event, final_result):
+            self.assertIn("jobStartedAt", payload)
+            self.assertIn("jobCompletedAt", payload)
+            self.assertGreater(payload["totalDurationMs"], 0)
+            self.assertRegex(payload["totalDuration"], r"^\d{2,}:\d{2}$")
+            total_seconds = payload["totalDurationMs"] // 1000
+            minutes, seconds = divmod(total_seconds, 60)
+            self.assertEqual(payload["totalDuration"], f"{minutes:02d}:{seconds:02d}")
+
+    def test_stage_failure_events_include_duration_and_are_persisted(self):
+        from report_engine.errors import ReportEngineError
+        from report_engine.logging_flow import run_with_artifact_logging
+        from report_engine.models import ReportJobRequest
+
+        request = ReportJobRequest(
+            datasetId="missing_dataset",
+            templateId="tpl_kb_monthly_guidebook",
+            monthId="2026-03",
+            componentMode="sample",
+            layoutMode="novita",
+            verificationMode="manual-pass",
+            maxIterations=3,
+            outputDir="runs",
+        )
+        events = []
+
+        with self.assertRaises(ReportEngineError):
+            run_with_artifact_logging(
+                request,
+                backend_root=BACKEND_ROOT,
+                renderer=FakeStage4Renderer(),
+                progress_callback=events.append,
+            )
+
+        job_id = events[0]["jobId"]
+        job_dir = BACKEND_ROOT / "log" / job_id
+        self.addCleanup(lambda: shutil.rmtree(job_dir, ignore_errors=True))
+        self.assertTrue(job_dir.is_dir())
+
+        failed = [event for event in events if event["event"] == "stage.failed"]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["stage"], "01_template")
+        self.assertIn("startedAt", failed[0])
+        self.assertIn("failedAt", failed[0])
+        self.assertGreaterEqual(failed[0]["durationMs"], 0)
+
+        logged_events = [
+            json.loads(line)
+            for line in (job_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(logged_events, events)
+
     def test_run_logs_do_not_include_llm_api_key_value(self):
         secret_value = "test-secret-value-for-log-redaction"
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -233,6 +338,25 @@ class CliLoggingTests(unittest.TestCase):
             self.assertIn('data-chart-rendered="performance_chart"', report_html)
             self.assertNotIn("data-chart-placeholder", report_html)
 
+    def test_cli_promotes_placeholder_renderer_for_novita_outputs(self):
+        from report_engine.cli import resolve_renderer_mode
+
+        mode, event = resolve_renderer_mode("novita", "manual-pass", "placeholder")
+
+        self.assertEqual(mode, "playwright")
+        self.assertEqual(event["event"], "renderer.mode.changed")
+        self.assertEqual(event["requestedRendererMode"], "placeholder")
+        self.assertEqual(event["rendererMode"], "playwright")
+        self.assertIn("component-mode=novita", event["reason"])
+
+    def test_cli_keeps_placeholder_renderer_for_offline_sample_smoke(self):
+        from report_engine.cli import resolve_renderer_mode
+
+        mode, event = resolve_renderer_mode("sample", "manual-pass", "placeholder")
+
+        self.assertEqual(mode, "placeholder")
+        self.assertIsNone(event)
+
     def test_run_supports_novita_component_mode_with_injected_fake_adapter(self):
         from report_engine.logging_flow import run_with_artifact_logging
         from report_engine.models import ReportJobRequest
@@ -275,6 +399,88 @@ class CliLoggingTests(unittest.TestCase):
         self.assertIn('data-chart-rendered="performance_chart"', report_html)
         self.assertNotIn("data-chart-placeholder", report_html)
 
+    def test_run_supports_fake_novita_verification_revision_loop(self):
+        from report_engine.logging_flow import run_with_artifact_logging
+        from report_engine.models import ReportJobRequest
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            request = ReportJobRequest(
+                datasetId="data_kodex_us_sp500",
+                templateId="tpl_kb_monthly_guidebook",
+                monthId="2026-03",
+                componentMode="novita",
+                layoutMode="novita",
+                verificationMode="novita",
+                maxIterations=3,
+                outputDir=str(Path(tmpdir) / "runs"),
+            )
+            adapter = RevisionVerificationFakeAdapter()
+            events = []
+
+            event = run_with_artifact_logging(
+                request,
+                backend_root=BACKEND_ROOT,
+                llm_adapter=adapter,
+                renderer=FakeStage4Renderer(),
+                progress_callback=events.append,
+            )
+            job_dir = Path(event["logPath"])
+            self.addCleanup(lambda: shutil.rmtree(job_dir, ignore_errors=True))
+
+            run_root = Path(tmpdir) / "runs" / event["jobId"]
+            first_verification = json.loads((run_root / "v1" / "verification.json").read_text(encoding="utf-8"))
+            second_verification = json.loads((run_root / "v2" / "verification.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(adapter.checked_versions, [1, 2])
+            self.assertEqual(event["version"], 2)
+            self.assertFalse(first_verification["passed"])
+            self.assertEqual(
+                first_verification["revisionInstruction"],
+                "Increase chart spacing and preserve footer safe area.",
+            )
+            self.assertTrue(second_verification["passed"])
+            self.assertEqual(
+                adapter.stage3_revision_inputs,
+                [None, "Increase chart spacing and preserve footer safe area."],
+            )
+            stage5_requests = [
+                item for item in events
+                if item["event"] == "llm.request.started" and item["stage"] == "05_verification"
+            ]
+            stage5_completed = [
+                item for item in events
+                if item["event"] == "llm.response.completed" and item["stage"] == "05_verification"
+            ]
+            self.assertEqual([item["version"] for item in stage5_requests], [1, 2])
+            self.assertEqual([item["version"] for item in stage5_completed], [1, 2])
+            self.assertFalse(stage5_completed[0]["passed"])
+            self.assertEqual(stage5_completed[0]["issueCount"], 1)
+            self.assertTrue(stage5_completed[0]["revisionRequested"])
+            self.assertTrue(stage5_completed[1]["passed"])
+            self.assertEqual(stage5_completed[1]["issueCount"], 0)
+            self.assertFalse(stage5_completed[1]["revisionRequested"])
+
+            stage5_progress = json.dumps(stage5_requests + stage5_completed, ensure_ascii=False)
+            self.assertIn("previewImagePath", stage5_progress)
+            self.assertNotIn("<!doctype", stage5_progress)
+            self.assertNotIn("data:image", stage5_progress)
+            verification_loop = json.loads((job_dir / "05_verification" / "verification_loop.json").read_text(encoding="utf-8"))
+            self.assertEqual(verification_loop["mode"], "novita")
+            self.assertEqual(verification_loop["passedVersion"], 2)
+            self.assertEqual([attempt["version"] for attempt in verification_loop["attempts"]], [1, 2])
+            self.assertFalse(verification_loop["attempts"][0]["passed"])
+            self.assertTrue(verification_loop["attempts"][1]["passed"])
+            revision_prompt = json.loads(
+                (job_dir / "05_verification" / "revisions" / "v2_prompt_input.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(revision_prompt["verificationCorrection"]["fromVersion"], 1)
+            self.assertTrue((run_root / "v2" / "report.html").is_file())
+            self.assertTrue((run_root / "final" / "report.html").is_file())
+            self.assertEqual(
+                (run_root / "final" / "report.html").read_text(encoding="utf-8"),
+                (run_root / "v2" / "report.html").read_text(encoding="utf-8"),
+            )
+
     def test_run_creates_stage4_version_artifacts_with_injected_renderer(self):
         from report_engine.logging_flow import run_with_artifact_logging
         from report_engine.models import ReportJobRequest
@@ -315,8 +521,17 @@ class CliLoggingTests(unittest.TestCase):
             self.assertNotIn("data-chart-placeholder", report_html)
             self.assertEqual(preview_path.read_bytes(), b"png")
             self.assertEqual(final_result["version"], 1)
-            self.assertEqual(final_result["reportHtmlPath"], str(report_path))
-            self.assertEqual(final_result["previewImagePath"], str(preview_path))
+            self.assertEqual(final_result["sourceVersion"], 1)
+            self.assertEqual(
+                Path(final_result["reportHtmlPath"]),
+                Path(tmpdir) / "runs" / event["jobId"] / "final" / "report.html",
+            )
+            self.assertEqual(
+                Path(final_result["previewImagePath"]),
+                Path(tmpdir) / "runs" / event["jobId"] / "final" / "preview.png",
+            )
+            self.assertEqual(Path(final_result["reportHtmlPath"]).read_text(encoding="utf-8"), report_html)
+            self.assertEqual(Path(final_result["previewImagePath"]).read_bytes(), b"png")
 
     def test_run_reports_llm_request_and_response_progress_without_payloads(self):
         from report_engine.logging_flow import run_with_artifact_logging
@@ -554,6 +769,72 @@ class CliLoggingTests(unittest.TestCase):
         self.assertNotIn("apiKey", combined_logs)
         self.assertNotIn("data:image", combined_logs)
 
+    def test_llm_call_log_counts_match_progress_events_for_stage2_stage3_and_stage5(self):
+        from report_engine.llm import NovitaLlmAdapter
+        from report_engine.logging_flow import run_with_artifact_logging
+        from report_engine.models import ReportJobRequest
+        from report_engine.settings import LlmSettings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            request = ReportJobRequest(
+                datasetId="data_kodex_us_sp500",
+                templateId="tpl_kb_monthly_guidebook",
+                monthId="2026-03",
+                componentMode="novita",
+                layoutMode="novita",
+                verificationMode="novita",
+                maxIterations=3,
+                outputDir=str(Path(tmpdir) / "runs"),
+            )
+            settings = LlmSettings(
+                model="qwen/test",
+                baseUrl="https://api.novita.ai/openai",
+                apiKey="secret-key-123",
+                temperature=0.0,
+                maxTokens=4096,
+                timeoutSeconds=120,
+                chunkSizeChars=12000,
+                stageBatchSize=1,
+            )
+            adapter = NovitaLlmAdapter(settings, session=SequenceSession(_task8_responses()))
+            events = []
+
+            with patch.dict(os.environ, {"LLM_API_KEY": "secret-key-123"}):
+                event = run_with_artifact_logging(
+                    request,
+                    backend_root=BACKEND_ROOT,
+                    llm_adapter=adapter,
+                    renderer=FakeStage4Renderer(),
+                    progress_callback=events.append,
+                )
+            job_dir = Path(event["logPath"])
+            self.addCleanup(lambda: shutil.rmtree(job_dir, ignore_errors=True))
+
+            for stage in ("02_components", "03_layout", "05_verification"):
+                completed_events = [
+                    item for item in events
+                    if item["event"] == "llm.response.completed" and item["stage"] == stage
+                ]
+                call_logs = sorted((job_dir / stage / "llm_calls").glob("*.json"))
+                self.assertEqual(len(call_logs), len(completed_events), stage)
+                for log_path in call_logs:
+                    payload = json.loads(log_path.read_text(encoding="utf-8"))
+                    self.assertEqual(payload["stage"], stage)
+                    self.assertEqual(payload["status"], "completed")
+                    self.assertGreaterEqual(payload["durationMs"], 0)
+
+            logged_events = [
+                json.loads(line)
+                for line in (job_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(logged_events, events + [event])
+
+            combined_logs = "\n".join(path.read_text(encoding="utf-8") for path in job_dir.rglob("*.json"))
+            self.assertNotIn("secret-key-123", combined_logs)
+            self.assertNotIn("Authorization", combined_logs)
+            self.assertNotIn("apiKey", combined_logs)
+            self.assertNotIn("data:image", combined_logs)
+
     def test_report_draft_escapes_product_name_metadata(self):
         component = Stage2Component(
             componentId="comp_x",
@@ -601,7 +882,36 @@ class FakeTask6Adapter:
 
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(item["html"] for item in prompt_input["components"])
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return (
+            "<!doctype html><html><head><style>"
+            ":root { --report-primary: #b61f2b; --report-accent: #f3e8e8; --chart-series-1: #b61f2b; --chart-series-2: #777777; }"
+            "body { margin: 0; }"
+            "</style></head><body>"
+            f"{body}</body></html>"
+        )
+
+
+class RevisionVerificationFakeAdapter(FakeTask6Adapter):
+    def __init__(self):
+        self.checked_versions = []
+        self.stage3_revision_inputs = []
+
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        correction = prompt_input.get("verificationCorrection")
+        self.stage3_revision_inputs.append(
+            correction.get("revisionInstruction") if isinstance(correction, dict) else None
+        )
+        return super().generate_stage3_layout(prompt_input, template_image_data_url=template_image_data_url)
+
+    def verify_report_version(self, report_version, *, template_context=None):
+        self.checked_versions.append(report_version.version)
+        if report_version.version == 1:
+            return {
+                "passed": False,
+                "issues": [{"code": "chart_spacing", "severity": "major"}],
+                "revisionInstruction": "Increase chart spacing and preserve footer safe area.",
+            }
+        return {"passed": True, "issues": []}
 
 
 class Stage3CorrectionFakeAdapter(FakeTask6Adapter):
@@ -613,7 +923,7 @@ class Stage3CorrectionFakeAdapter(FakeTask6Adapter):
         body = "\n".join(item["html"] for item in prompt_input["components"])
         if self.stage3_call_count == 1:
             return f"<!doctype html><html><body>{body}</body></html>"
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return super().generate_stage3_layout(prompt_input, template_image_data_url=template_image_data_url)
 
 
 class BatchLimitedFakeAdapter(FakeTask6Adapter):
@@ -678,12 +988,25 @@ def _task7_responses():
         )
     chart_id = f"comp_{dataset_id}_{month_id.replace('-', '_')}_performance_chart"
     layout_html = (
-        "<!doctype html><html><head><style>body { margin: 0; }</style></head><body>"
+        "<!doctype html><html><head><style>"
+        ":root { --report-primary: #b61f2b; --report-accent: #f3e8e8; --chart-series-1: #b61f2b; --chart-series-2: #777777; }"
+        "body { margin: 0; }</style></head><body>"
         f'<section data-component-id="{chart_id}"><div data-chart-placeholder="{chart_id}"></div></section>'
         + "\n".join(component_html[1:])
         + "</body></html>"
     )
     responses.append(FakeResponse(layout_html, usage={"prompt_tokens": 50, "completion_tokens": 40, "total_tokens": 90}))
+    return responses
+
+
+def _task8_responses():
+    responses = _task7_responses()
+    responses.append(
+        FakeResponse(
+            json.dumps({"passed": True, "issues": []}, ensure_ascii=False),
+            usage={"prompt_tokens": 20, "completion_tokens": 7, "total_tokens": 27},
+        )
+    )
     return responses
 
 

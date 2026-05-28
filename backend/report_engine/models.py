@@ -16,7 +16,6 @@ class PageSettings:
 @dataclass(frozen=True)
 class TemplateContext:
     templateId: str
-    sourceHtml: str
     previewImage: str
     page: PageSettings
     name: str | None = None
@@ -27,7 +26,6 @@ class DatasetContext:
     datasetId: str
     baseData: dict[str, Any]
     monthlySnapshots: list[dict[str, Any]]
-    styleCandidates: dict[str, Any] | None = None
     schemaVersion: str | None = None
 
 

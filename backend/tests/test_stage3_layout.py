@@ -7,6 +7,11 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_ROOT = BACKEND_ROOT.parent
 
+_TEMPLATE_CSS_VARS = (
+    ":root { --report-primary: #b61f2b; --report-accent: #f3e8e8; "
+    "--chart-series-1: #b61f2b; --chart-series-2: #777777; }"
+)
+
 
 class Stage3LayoutTests(unittest.TestCase):
     def setUp(self):
@@ -41,7 +46,7 @@ class Stage3LayoutTests(unittest.TestCase):
                     "Custom constraint: Generate document-local CSS in a non-empty <style> block.",
                     "Custom constraint: Footer must stay in normal document flow.",
                     "Custom constraint: Do not use position:absolute or position:fixed for footer or bottom disclaimers.",
-                    "Custom constraint: Do not copy data labels, table values, or prose from template sourceHtml or preview image.",
+                    "Custom constraint: Do not copy data labels, table values, or prose from template preview image.",
                     "Custom constraint: Match the template preview image as closely as possible.",
                 ],
             )
@@ -56,9 +61,9 @@ class Stage3LayoutTests(unittest.TestCase):
             self.assertIn(component.componentId, html)
         self.assertEqual(adapter.last_prompt_input, prompt_input)
         self.assertIn("previewImage", prompt_input["template"])
-        self.assertIn("sourceHtml", prompt_input["template"])
+        self.assertNotIn("sourceHtml", prompt_input["template"])
         self.assertEqual(prompt_input["dataset"]["datasetId"], "data_kodex_us_sp500")
-        self.assertIn("styleCandidates", prompt_input["dataset"])
+        self.assertNotIn("styleCandidates", prompt_input["dataset"])
         self.assertEqual(
             prompt_input["visualObjective"],
             [
@@ -74,9 +79,25 @@ class Stage3LayoutTests(unittest.TestCase):
         self.assertIn("Custom constraint: Do not use position:absolute or position:fixed for footer or bottom disclaimers.", prompt_input["constraints"])
         self.assertIn("Custom constraint: Generate document-local CSS in a non-empty <style> block.", prompt_input["constraints"])
         self.assertIn("Custom constraint: Match the template preview image as closely as possible.", prompt_input["constraints"])
-        self.assertIn("Custom constraint: Do not copy data labels, table values, or prose from template sourceHtml or preview image.", prompt_input["constraints"])
+        self.assertIn("Custom constraint: Do not copy data labels, table values, or prose from template preview image.", prompt_input["constraints"])
         self.assertNotIn("LLM_API_KEY", json.dumps(prompt_input, ensure_ascii=False))
         self.assertNotIn("apiKey", json.dumps(prompt_input, ensure_ascii=False))
+
+    def test_retries_once_when_template_derived_css_variables_are_missing(self):
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        adapter = CssVariablesMissingThenValidAdapter()
+        service = Stage3LayoutService(adapter)
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        html = service.generate_report_draft(prompt_input, self.components)
+
+        self.assertIn("--report-primary: #b61f2b", html)
+        self.assertEqual(adapter.call_count, 2)
+        requirements = "\n".join(adapter.prompt_inputs[1]["correction"]["requirements"])
+        self.assertIn("--report-primary", requirements)
+        self.assertIn("--chart-series-1", requirements)
+        self.assertIn("template preview image", requirements)
 
     def test_retries_once_when_initial_layout_invalid_then_accepts_correction(self):
         from report_engine.prompt_store import PromptStore
@@ -149,6 +170,67 @@ class Stage3LayoutTests(unittest.TestCase):
         self.assertIn("NVIDIA Corp", html)
         self.assertEqual(adapter.call_count, 2)
         self.assertIn("source fragments", " ".join(adapter.prompt_inputs[1]["correction"]["requirements"]))
+
+    def test_footer_flow_correction_prompt_names_forbidden_positioning(self):
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        adapter = FooterAbsoluteThenValidAdapter()
+        service = Stage3LayoutService(adapter)
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        html = service.generate_report_draft(prompt_input, self.components)
+
+        correction = adapter.prompt_inputs[1]["correction"]
+        requirements = "\n".join(correction["requirements"])
+        self.assertIn("<footer>normal flow disclaimer</footer>", html)
+        self.assertIn("Remove position:absolute and position:fixed from footer", requirements)
+        self.assertIn("Do not anchor footer or bottom disclaimers with bottom/left/right overlay coordinates.", requirements)
+        self.assertIn("Rewrite forbidden footer CSS from rejectedHtml instead of copying it.", requirements)
+
+    def test_correction_prompt_lists_exact_missing_numeric_fragments(self):
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = Stage2Component(
+            componentId="comp_summary",
+            dataSourceId="ds_summary",
+            datasetId="data_x",
+            monthId="2026-03",
+            componentKey="performance_summary",
+            renderType="table",
+            html=(
+                '<section data-component-id="comp_summary">'
+                "<table><tbody><tr>"
+                "<td>-4.89%</td><td>6.65%</td><td>9.55%</td>"
+                "</tr></tbody></table>"
+                "</section>"
+            ),
+            chartSpec=None,
+            styled=False,
+        )
+        adapter = PercentMissingThenStructuredCorrectionAdapter()
+
+        html = Stage3LayoutService(adapter).generate_report_draft(
+            {"components": [{"componentId": component.componentId, "html": component.html}]},
+            [component],
+        )
+
+        correction = adapter.prompt_inputs[1]["correction"]
+        self.assertIn("<td>-4.89%</td>", html)
+        self.assertEqual(
+            correction["sourceFragmentViolations"],
+            [
+                {
+                    "componentId": "comp_summary",
+                    "componentKey": "performance_summary",
+                    "missingFragments": ["-4.89%", "6.65%", "9.55%"],
+                }
+            ],
+        )
+        self.assertIn(
+            "Do not remove sign prefixes, percent symbols, currency or unit symbols, commas, or decimal points.",
+            correction["requirements"],
+        )
 
     def test_rejects_when_correction_output_remains_invalid(self):
         from report_engine.errors import ErrorCode, ReportEngineError
@@ -570,6 +652,18 @@ class Stage3LayoutTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
 
+    def test_allows_non_footer_selector_absolute_position_for_decorative_markers(self):
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        service = Stage3LayoutService(TableFooterMarkerAdapter())
+        prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+
+        html = service.generate_report_draft(prompt_input, self.components)
+
+        self.assertIn(".table-footer ul li::before", html)
+        self.assertIn("position: absolute", html)
+        self.assertIn("<footer>normal flow disclaimer</footer>", html)
+
     def test_rejects_layout_missing_component_id(self):
         from report_engine.errors import ErrorCode, ReportEngineError
         from report_engine.stage3_layout import Stage3LayoutService
@@ -658,7 +752,7 @@ class FakeLayoutAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         self.last_prompt_input = prompt_input
         body = "\n".join(item["html"] for item in prompt_input["components"])
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class _SequenceLayoutAdapter:
@@ -679,7 +773,7 @@ class _SequenceLayoutAdapter:
     @staticmethod
     def _valid_html(prompt_input):
         body = "\n".join(item["html"] for item in prompt_input["components"])
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class CssMissingThenValidAdapter(_SequenceLayoutAdapter):
@@ -690,6 +784,14 @@ class CssMissingThenValidAdapter(_SequenceLayoutAdapter):
         return self._valid_html(prompt_input)
 
 
+class CssVariablesMissingThenValidAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        if call_count == 1:
+            return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return self._valid_html(prompt_input)
+
+
 class SourceMissingThenValidAdapter(_SequenceLayoutAdapter):
     def _response(self, prompt_input, call_count):
         if call_count == 1:
@@ -697,8 +799,39 @@ class SourceMissingThenValidAdapter(_SequenceLayoutAdapter):
                 item["html"].replace("NVIDIA Corp", "")
                 for item in prompt_input["components"]
             )
-            return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+            return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
         return self._valid_html(prompt_input)
+
+
+class FooterAbsoluteThenValidAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        if call_count == 1:
+            return (
+                "<!doctype html><html><head><style>"
+                f"{_TEMPLATE_CSS_VARS} body {{ margin: 0; }} footer {{ position: absolute; bottom: 0; left: 0; right: 0; }}"
+                "</style></head><body>"
+                f"{body}<footer>normal flow disclaimer</footer>"
+                "</body></html>"
+            )
+        return self._valid_html(prompt_input) + "<footer>normal flow disclaimer</footer>"
+
+
+class PercentMissingThenStructuredCorrectionAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
+        source_body = "\n".join(item["html"] for item in prompt_input["components"])
+        bad_body = (
+            source_body
+            .replace("-4.89%", "-4.89")
+            .replace("6.65%", "6.65")
+            .replace("9.55%", "9.55")
+        )
+        if call_count == 1:
+            return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{bad_body}</body></html>"
+        correction = prompt_input.get("correction", {})
+        if isinstance(correction, dict) and correction.get("sourceFragmentViolations"):
+            return self._valid_html(prompt_input)
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{bad_body}</body></html>"
 
 
 class AlwaysCssMissingAdapter(_SequenceLayoutAdapter):
@@ -718,7 +851,7 @@ class ExternalCssAdapter:
         body = "\n".join(item["html"] for item in prompt_input["components"])
         return (
             '<!doctype html><html><head><link rel="stylesheet" href="https://example.com/report.css">'
-            "<style>@import url('https://example.com/theme.css'); body { margin: 0; }</style></head>"
+            f"<style>@import url('https://example.com/theme.css'); {_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head>"
             f"<body>{body}</body></html>"
         )
 
@@ -727,7 +860,7 @@ class ProtocolRelativeResourceAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(item["html"] for item in prompt_input["components"])
         return (
-            "<!doctype html><html><head><style>body { margin: 0; }</style></head>"
+            f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head>"
             f'<body>{body}<img src="//example.com/report.png" alt=""></body></html>'
         )
 
@@ -738,25 +871,25 @@ class SourceMissingAdapter:
             item["html"].replace("NVIDIA Corp", "")
             for item in prompt_input["components"]
         )
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class HeadingRelabeledAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = prompt_input["components"][0]["html"].replace("ETF 성과 추이 요약", "ETF 성과 추이")
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class MissingTableHeaderAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = prompt_input["components"][0]["html"].replace("<th>1개월</th>", "")
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class MissingTableNumberAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = prompt_input["components"][0]["html"].replace("<td>6.45%</td>", "")
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class MissingListItemAdapter:
@@ -768,7 +901,7 @@ class MissingListItemAdapter:
 class ListMarkerMovedAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<section data-component-id="comp_outlook">'
             '<ul>'
             '<li data-num="1">NVIDIA와 BROADCOM을 중심으로 한 AI 반도체 수요가 지수 성과의 핵심 동력으로 작용할 전망</li>'
@@ -783,7 +916,7 @@ class ListMarkerMovedAdapter:
 class ChartPlaceholderOnlyAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<section data-component-id="comp_chart"><div data-chart-placeholder="comp_chart"></div></section>'
             '<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>'
             "</body></html>"
@@ -793,7 +926,7 @@ class ChartPlaceholderOnlyAdapter:
 class ChartPlaceholderWithoutComponentIdAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<div class="chart-placeholder" data-chart-placeholder="comp_chart">Chart placeholder</div>'
             '<section data-component-id="comp_summary"><p>Preserve this summary value 12.34</p></section>'
             "</body></html>"
@@ -804,7 +937,7 @@ class ChartPlaceholderWithExactCssSelectorAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
             '<!doctype html><html><head><style>'
-            '[data-chart-placeholder="comp_chart"] { min-height: 120px; }'
+            f'{_TEMPLATE_CSS_VARS} [data-chart-placeholder="comp_chart"] {{ min-height: 120px; }}'
             "</style></head><body>"
             '<div class="chart-placeholder" data-chart-placeholder="comp_chart">Chart placeholder</div>'
             "</body></html>"
@@ -814,7 +947,7 @@ class ChartPlaceholderWithExactCssSelectorAdapter:
 class ChartComponentWithoutPlaceholderAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<section data-component-id="comp_chart"><div class="chart-placeholder">Chart placeholder</div></section>'
             "</body></html>"
         )
@@ -823,7 +956,7 @@ class ChartComponentWithoutPlaceholderAdapter:
 class DuplicateChartPlaceholderAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<section data-component-id="comp_chart">'
             '<div data-chart-placeholder="comp_chart">Chart placeholder 1</div>'
             '<div data-chart-placeholder="comp_chart">Chart placeholder 2</div>'
@@ -862,7 +995,7 @@ class MissingComponentAdapter:
             f'<section data-component-id="{item["componentId"]}"></section>'
             for item in prompt_input["components"][:-1]
         )
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class TextOnlyComponentIdAdapter:
@@ -876,14 +1009,14 @@ class TextOnlyComponentIdAdapter:
             component_html = item["html"].replace(marker, 'data-removed-component-id="x"')
             body_parts.append(f'<section><p>{item["componentId"]}</p>{component_html}</section>')
         body = "\n".join(body_parts)
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class CssOnlyComponentIdAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
             '<!doctype html><html><head><style>'
-            '[data-component-id="comp_article"] { margin: 0; }'
+            f'{_TEMPLATE_CSS_VARS} [data-component-id="comp_article"] {{ margin: 0; }}'
             "</style></head><body>"
             "<section><p>Preserve this article text.</p></section>"
             "</body></html>"
@@ -893,7 +1026,7 @@ class CssOnlyComponentIdAdapter:
 class FencedHtmlAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(item["html"] for item in prompt_input["components"])
-        return f"```html\n<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>\n```"
+        return f"```html\n<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>\n```"
 
 
 class ChartRenderingAdapter:
@@ -905,13 +1038,13 @@ class ChartRenderingAdapter:
             for item in prompt_input["components"]
             for component_id in [item["componentId"]]
         )
-        return f"<!doctype html><html><head><style>body {{ margin: 0; }}</style></head><body>{body}</body></html>"
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{body}</body></html>"
 
 
 class NonChartSvgDecorationAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<header><svg viewBox="0 0 10 10"><rect width="10" height="10"></rect></svg></header>'
             '<main>'
             '<div data-chart-placeholder="comp_chart">Chart placeholder</div>'
@@ -924,7 +1057,7 @@ class NonChartSvgDecorationAdapter:
 class ChartPlaceholderSvgAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<div data-chart-placeholder="comp_chart">'
             '<svg viewBox="0 0 10 10"><polyline points="0,10 10,0"></polyline></svg>'
             '</div>'
@@ -935,7 +1068,7 @@ class ChartPlaceholderSvgAdapter:
 class DataChartRenderedSvgAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         return (
-            '<!doctype html><html><head><style>body { margin: 0; }</style></head><body>'
+            f'<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>'
             '<div data-chart-placeholder="comp_chart">Chart placeholder</div>'
             '<svg data-chart-rendered="performance_chart" viewBox="0 0 10 10"></svg>'
             '</body></html>'
@@ -947,9 +1080,24 @@ class AbsoluteFooterAdapter:
         body = "\n".join(item["html"] for item in prompt_input["components"])
         return (
             "<!doctype html><html><head><style>"
-            "footer { position: absolute; bottom: 20mm; left: 20mm; right: 20mm; }"
+            f"{_TEMPLATE_CSS_VARS} footer {{ position: absolute; bottom: 20mm; left: 20mm; right: 20mm; }}"
             "</style></head><body>"
             f"{body}<footer>disclaimer</footer>"
+            "</body></html>"
+        )
+
+
+class TableFooterMarkerAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        return (
+            "<!doctype html><html><head><style>"
+            f"{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}"
+            ".table-footer ul li { position: relative; padding-left: 14px; }"
+            ".table-footer ul li::before { content: '•'; position: absolute; left: 0; }"
+            "footer { padding: 20px 32px; margin-top: 24px; }"
+            "</style></head><body>"
+            f"{body}<footer>normal flow disclaimer</footer>"
             "</body></html>"
         )
 
@@ -970,9 +1118,10 @@ def _write_default_stage3_prompt_files(prompt_root: Path) -> None:
         [
             "Return one complete HTML document.",
             "Match the template preview image as closely as possible.",
-            "Use sourceHtml, styleCandidates, and template preview image only as visual references.",
+            "Infer the report palette, accent colors, header styling, table styling, and section styling from the attached template preview image.",
+            "Define --report-primary, --report-accent, --chart-series-1, and --chart-series-2 CSS variables from the attached template preview image.",
             "Use supplied Stage 2 components as the only source for report data, table labels, values, and prose.",
-            "Do not copy data labels, table values, or prose from template sourceHtml or preview image.",
+            "Do not copy data labels, table values, or prose from template preview image.",
             "Generate document-local CSS in a non-empty <style> block.",
             "Do not use external CSS files, @import, external fonts, or external network resources.",
             "Stage 3 CSS must cover A4 portrait layout, header/footer/brand, section spacing, typography, table/list/article styling, chart placeholder space, and bottom safe area.",

@@ -13,7 +13,8 @@ class ChartRenderer:
     def render_and_inject(self, html: str, components: list[Stage2Component]) -> str:
         component = self._performance_chart_component(components)
         spec = self._validate_chart_spec(component.chartSpec)
-        svg = self._render_line_svg(spec) if spec["type"] == "line" else self._render_bar_svg(spec)
+        colors = _chart_series_colors(html)
+        svg = self._render_line_svg(spec, colors) if spec["type"] == "line" else self._render_bar_svg(spec, colors)
         return self._replace_placeholder(html, component.componentId, svg)
 
     def _performance_chart_component(self, components: list[Stage2Component]) -> Stage2Component:
@@ -86,7 +87,7 @@ class ChartRenderer:
         matches.extend((match.start(), match.end()) for match in self_closing.finditer(html))
         return sorted(matches)
 
-    def _render_bar_svg(self, spec: dict[str, Any]) -> str:
+    def _render_bar_svg(self, spec: dict[str, Any], colors: list[str]) -> str:
         labels: list[str] = spec["labels"]
         series: list[dict[str, Any]] = spec["series"]
         unit: str = spec["unit"]
@@ -108,8 +109,6 @@ class ChartRenderer:
         group_width = plot_width / len(labels)
         bar_width = max(4.0, min(28.0, (group_width - 20.0) / len(series) - 4.0))
         zero_y = self._scale_y(0.0, min_value, max_value, top, plot_height)
-        colors = ["#1f5eff", "#31a66a", "#f08a24", "#7a4cc2"]
-
         parts = [
             '<svg data-chart-rendered="performance_chart" '
             'data-chart-type="bar" '
@@ -181,7 +180,7 @@ class ChartRenderer:
         parts.append("</svg>")
         return "".join(parts)
 
-    def _render_line_svg(self, spec: dict[str, Any]) -> str:
+    def _render_line_svg(self, spec: dict[str, Any], colors: list[str]) -> str:
         labels: list[str] = spec["labels"]
         series: list[dict[str, Any]] = spec["series"]
         unit: str = spec["unit"]
@@ -201,8 +200,6 @@ class ChartRenderer:
         plot_width = width - left - right
         plot_height = height - top - bottom
         step = plot_width / max(1, len(labels) - 1)
-        colors = ["#1f5eff", "#31a66a", "#f08a24", "#7a4cc2"]
-
         parts = [
             '<svg data-chart-rendered="performance_chart" '
             'data-chart-type="line" '
@@ -301,3 +298,22 @@ class ChartRenderer:
     @staticmethod
     def _render_failed(detail: str) -> ReportEngineError:
         return ReportEngineError(ErrorCode.RENDER_FAILED, detail, stage="stage4")
+
+
+_NEUTRAL_CHART_COLORS = ["#4b5563", "#9ca3af", "#6b7280", "#d1d5db"]
+_CSS_VARIABLE_PATTERN = re.compile(
+    r"(?P<name>--chart-series-[1-4])\s*:\s*(?P<value>#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?)\b"
+)
+
+
+def _chart_series_colors(html: str) -> list[str]:
+    values: dict[str, str] = {}
+    for match in _CSS_VARIABLE_PATTERN.finditer(html):
+        values[match.group("name")] = match.group("value").lower()
+
+    colors = [
+        values[name]
+        for name in ("--chart-series-1", "--chart-series-2", "--chart-series-3", "--chart-series-4")
+        if name in values
+    ]
+    return colors or _NEUTRAL_CHART_COLORS

@@ -34,7 +34,6 @@ class ReportRepository:
                     schemaVersion=item.get("schemaVersion"),
                     baseData=item["baseData"],
                     monthlySnapshots=item["monthlySnapshots"],
-                    styleCandidates=item.get("styleCandidates"),
                 )
         raise ReportEngineError(
             ErrorCode.DATASET_NOT_FOUND,
@@ -50,7 +49,6 @@ class ReportRepository:
                 return TemplateContext(
                     templateId=item["templateId"],
                     name=item.get("name"),
-                    sourceHtml=item["sourceHtml"],
                     previewImage=item["previewImage"],
                     page=PageSettings(size=page["size"], orientation=page["orientation"]),
                 )

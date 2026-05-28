@@ -6,11 +6,13 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Protocol
 
 import requests
 
 from .errors import ErrorCode, ReportEngineError
+from .models import ReportVersion, TemplateContext
 from .prompt_store import PromptStore
 from .settings import LlmSettings
 
@@ -28,6 +30,14 @@ class LlmAdapter(Protocol):
 
     def generate_stage3_layout(self, prompt_input: dict[str, Any], template_image_data_url: str | None = None) -> str:
         """Return a single HTML report draft for Stage 3."""
+
+    def verify_report_version(
+        self,
+        report_version: ReportVersion,
+        *,
+        template_context: TemplateContext | None = None,
+    ) -> dict[str, Any]:
+        """Return Stage 5 visual verification result for one rendered report version."""
 
 
 class NovitaLlmAdapter:
@@ -99,6 +109,33 @@ class NovitaLlmAdapter:
             label="layout",
             transform=lambda content: content.strip(),
         )
+
+    def verify_report_version(
+        self,
+        report_version: ReportVersion,
+        *,
+        template_context: TemplateContext | None = None,
+    ) -> dict[str, Any]:
+        def verify() -> dict[str, Any]:
+            return self._post_chat(
+                [
+                    {
+                        "role": "system",
+                        "content": self.prompt_store.read_text("05_verification_system.txt"),
+                    },
+                    {
+                        "role": "user",
+                        "content": self._stage5_user_content(report_version, template_context),
+                    },
+                ],
+                response_format={"type": "json_object"},
+                stage="05_verification",
+                task="stage5_verification",
+                label=f"v{report_version.version}",
+                transform=self._normalize_stage5_verification_content,
+            )
+
+        return self._retry_invalid_json(verify)
 
     def _post_chat(
         self,
@@ -482,6 +519,226 @@ class NovitaLlmAdapter:
             {"type": "text", "text": text},
             {"type": "image_url", "image_url": {"url": template_image_data_url}},
         ]
+
+    def _stage5_user_content(
+        self,
+        report_version: ReportVersion,
+        template_context: TemplateContext | None,
+    ) -> list[dict[str, Any]]:
+        html_path = Path(report_version.htmlPath)
+        preview_path = Path(report_version.previewImagePath)
+        try:
+            report_html = html_path.read_text(encoding="utf-8")
+            preview_image = preview_path.read_bytes()
+        except OSError as exc:
+            raise ReportEngineError(
+                ErrorCode.CONFIG_INVALID,
+                f"Stage 5 verification input file could not be read: {exc.filename}",
+                stage="stage5",
+            ) from exc
+
+        text = json.dumps(
+            {
+                "task": "stage5_verification",
+                "reportVersion": {
+                    "jobId": report_version.jobId,
+                    "version": report_version.version,
+                    "htmlPath": report_version.htmlPath,
+                    "previewImagePath": report_version.previewImagePath,
+                    "status": report_version.status,
+                    "createdAt": report_version.createdAt,
+                },
+                "template": _template_context_payload(template_context),
+                "requirements": self.prompt_store.read_json("05_verification_requirements.json"),
+                "reportHtml": report_html,
+                "responseSchema": {
+                    "passed": "boolean",
+                    "issues": [
+                        {
+                            "type": "overlap|overflow|clipping|missing_content|data_mismatch|chart_rendering|footer_overlap|other",
+                            "severity": "minor|major|critical",
+                            "description": "short issue description",
+                            "location": "optional page or element location",
+                            "evidence": "optional visual or HTML evidence",
+                            "suggestion": "optional concrete fix suggestion",
+                        }
+                    ],
+                    "revisionInstruction": "required when passed is false and a revision should be attempted",
+                },
+            },
+            ensure_ascii=False,
+        )
+        return [
+            {"type": "text", "text": text},
+            {
+                "label": "generatedPreviewImage",
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{self._image_mime_type(preview_path)};base64,{base64.b64encode(preview_image).decode('ascii')}",
+                },
+            },
+            *_template_preview_image_content(template_context),
+        ]
+
+    def _normalize_stage5_verification_content(self, content: str) -> dict[str, Any]:
+        value = self._parse_stage5_verification_content(content)
+        if not isinstance(value, dict):
+            raise ReportEngineError(
+                ErrorCode.LLM_INVALID_JSON,
+                "Stage 5 verification response must be one JSON object",
+                stage="llm",
+            )
+        passed = value.get("passed")
+        if not isinstance(passed, bool):
+            raise ReportEngineError(
+                ErrorCode.LLM_INVALID_JSON,
+                "Stage 5 verification response must include boolean passed",
+                stage="llm",
+            )
+        issues = value.get("issues")
+        if not isinstance(issues, list):
+            raise ReportEngineError(
+                ErrorCode.LLM_INVALID_JSON,
+                "Stage 5 verification response must include issues as a list",
+                stage="llm",
+            )
+        normalized_issues = [self._normalize_stage5_issue(issue) for issue in issues]
+        revision_instruction = value.get("revisionInstruction")
+        if revision_instruction is not None and not isinstance(revision_instruction, str):
+            raise ReportEngineError(
+                ErrorCode.LLM_INVALID_JSON,
+                "Stage 5 verification revisionInstruction must be a string",
+                stage="llm",
+            )
+
+        result: dict[str, Any] = {
+            "passed": passed,
+            "issues": normalized_issues,
+        }
+        if isinstance(revision_instruction, str) and revision_instruction.strip():
+            result["revisionInstruction"] = revision_instruction.strip()
+        return result
+
+    def _parse_stage5_verification_content(self, content: str) -> Any:
+        value = self._parse_stage2_component_content(content)
+        for _ in range(5):
+            if isinstance(value, dict):
+                return value
+            if isinstance(value, str):
+                value = self._parse_stage2_component_content(value)
+                continue
+            break
+        return value
+
+    @staticmethod
+    def _normalize_stage5_issue(issue: Any) -> dict[str, Any]:
+        if not isinstance(issue, dict):
+            raise ReportEngineError(
+                ErrorCode.LLM_INVALID_JSON,
+                "Stage 5 verification issues must be objects",
+                stage="llm",
+            )
+        required_fields = ("type", "severity", "description")
+        missing = [field for field in required_fields if not isinstance(issue.get(field), str) or not issue.get(field).strip()]
+        if missing:
+            raise ReportEngineError(
+                ErrorCode.LLM_INVALID_JSON,
+                f"Stage 5 verification issue missing required fields: {', '.join(missing)}",
+                stage="llm",
+            )
+        allowed_types = {
+            "overlap",
+            "overflow",
+            "clipping",
+            "missing_content",
+            "data_mismatch",
+            "chart_rendering",
+            "footer_overlap",
+            "other",
+        }
+        issue_type = issue["type"].strip()
+        if issue_type not in allowed_types:
+            raise ReportEngineError(
+                ErrorCode.LLM_INVALID_JSON,
+                f"Stage 5 verification issue type is not allowed: {issue_type}",
+                stage="llm",
+            )
+
+        normalized: dict[str, Any] = {
+            "type": issue_type,
+            "severity": issue["severity"].strip(),
+            "description": issue["description"].strip(),
+        }
+        for optional_field in ("location", "evidence", "suggestion"):
+            value = issue.get(optional_field)
+            if isinstance(value, str) and value.strip():
+                normalized[optional_field] = value.strip()
+        return normalized
+
+    @staticmethod
+    def _image_mime_type(path: Path) -> str:
+        suffix = path.suffix.lower()
+        if suffix in {".jpg", ".jpeg"}:
+            return "image/jpeg"
+        if suffix == ".webp":
+            return "image/webp"
+        return "image/png"
+
+
+def _template_context_payload(template_context: TemplateContext | None) -> dict[str, Any] | None:
+    if template_context is None:
+        return None
+    return {
+        "templateId": template_context.templateId,
+        "previewImage": template_context.previewImage,
+        "page": {
+            "size": template_context.page.size,
+            "orientation": template_context.page.orientation,
+        },
+        "name": template_context.name,
+    }
+
+
+def _template_preview_image_content(template_context: TemplateContext | None) -> list[dict[str, Any]]:
+    if template_context is None:
+        return []
+    image_path = _resolve_template_preview_image_path(template_context.previewImage)
+    try:
+        image_bytes = image_path.read_bytes()
+    except OSError as exc:
+        raise ReportEngineError(
+            ErrorCode.CONFIG_INVALID,
+            f"Stage 5 template preview image could not be read: {template_context.previewImage}",
+            stage="stage5",
+        ) from exc
+    return [
+        {
+            "label": "templatePreviewImage",
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{NovitaLlmAdapter._image_mime_type(image_path)};base64,{base64.b64encode(image_bytes).decode('ascii')}",
+            },
+        }
+    ]
+
+
+def _resolve_template_preview_image_path(preview_image: str) -> Path:
+    path = Path(preview_image)
+    if path.is_file():
+        return path
+    candidates: list[Path] = []
+    if not path.is_absolute():
+        candidates.extend(
+            [
+                Path.cwd() / path,
+                Path.cwd().parent / path,
+                Path(__file__).resolve().parents[2] / path,
+            ]
+        )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return path
 
 
 def _now_iso() -> str:

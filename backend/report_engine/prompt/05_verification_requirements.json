@@ -1,0 +1,13 @@
+// ko: Stage 5 preview 이미지 검증 요구사항입니다.
+// ko: 이 JSON은 LLM 사용자 메시지에 포함되며 comment stripping 후 배열로 읽힙니다.
+[
+  "Verify that all Stage 2 component content visible in the HTML is present in the preview image.",
+  "Verify that text, tables, chart, section titles, and footer do not overlap.",
+  "Verify that no important content is clipped at page edges or hidden outside the page.",
+  "Verify that numeric values and key source phrases are not visually altered or omitted.",
+  "Verify that the generated preview follows the template preview image brand color palette and visual tone.",
+  "Do not fail solely because chart type, exact grid structure, logo asset, or decorative footer graphic differs from the template when the report is readable, complete, and visually aligned in brand color and tone.",
+  "Verify that the performance chart is rendered as a visible chart, not as an empty placeholder.",
+  "Verify that the footer remains at the bottom in normal document flow and does not cover body content.",
+  "If any problem is found, return passed=false with issue objects containing type, severity, description, and a concise revisionInstruction."
+]

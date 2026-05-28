@@ -2,7 +2,6 @@
   "schemaVersion": "poc.etfMonthlyIssueReport.dataset.v1",
   "template": {
     "id": "woori_kodex_monthly_issue_report",
-    "sourceHtml": "document/report/우리은행_월간_리포트.html",
     "previewImage": "document/report/우리은행_월간_리포트.png",
     "page": {
       "size": "A4",
@@ -225,20 +224,5 @@
         "closing": "글로벌 경기 둔화 우려와 매크로 불확실성이 지속되는 구간에서 동 ETF는 변동성을 낮추며 꾸준한 인컴 수익을 추구하는 안정적인 대안"
       }
     }
-  ],
-  "styleCandidates": {
-    "theme": {
-      "primary": "#0258ff",
-      "chartBlue": "#1967f2",
-      "benchmarkGray": "#8e8e8e",
-      "tableHeaderBlue": "#2d66f3",
-      "ruleGray": "#c4c4c4",
-      "paper": "#ffffff"
-    },
-    "layout": {
-      "pageSize": "A4 portrait",
-      "columns": 2,
-      "mainSections": ["performanceTrend", "topHoldings", "review", "outlook"]
-    }
-  }
+  ]
 }

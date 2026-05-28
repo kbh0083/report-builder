@@ -28,7 +28,6 @@ class Stage3LayoutService:
                 "datasetId": dataset.datasetId,
                 "productName": dataset.baseData["product"]["productName"],
                 "distributorName": dataset.baseData["salesChannel"]["distributorName"],
-                "styleCandidates": dataset.styleCandidates or {},
             },
             "monthSnapshot": {
                 "monthId": month_snapshot["monthId"],
@@ -61,7 +60,7 @@ class Stage3LayoutService:
         except ReportEngineError as exc:
             if exc.code != ErrorCode.LAYOUT_GENERATION_INVALID:
                 raise
-            correction_input = self._build_correction_prompt_input(prompt_input, html, exc)
+            correction_input = self._build_correction_prompt_input(prompt_input, html, exc, components)
             html = self._generate_layout_html(correction_input, template_image_data_url)
             self.validate_report_draft(html, components)
         return html
@@ -76,6 +75,12 @@ class Stage3LayoutService:
             raise self._invalid("Stage 3 layout output must include document-local CSS in a non-empty <style> block")
         if _EXTERNAL_RESOURCE_PATTERN.search(html):
             raise self._invalid("Stage 3 layout output must not reference external CSS or network resources")
+        missing_css_variables = _missing_template_css_variables(html)
+        if missing_css_variables:
+            raise self._invalid(
+                "Stage 3 layout output must define template-derived CSS variables: "
+                + ", ".join(missing_css_variables)
+            )
         missing = [
             component.componentId
             for component in components
@@ -85,7 +90,7 @@ class Stage3LayoutService:
             raise self._invalid(f"Stage 3 layout output is missing components: {', '.join(missing)}")
         if _has_forbidden_chart_rendering(html, components):
             raise self._invalid("Stage 3 layout output must not render charts before Stage 4")
-        if _FOOTER_OVERLAP_RISK_PATTERN.search(html):
+        if _has_footer_overlap_risk(html):
             raise self._invalid("Stage 3 layout output must keep footer in normal document flow")
         invalid_placeholders = [
             f"{component.componentId} ({_chart_placeholder_count(html, component.componentId)})"
@@ -113,31 +118,50 @@ class Stage3LayoutService:
         prompt_input: dict[str, Any],
         rejected_html: str,
         error: ReportEngineError,
+        components: list[Stage2Component],
     ) -> dict[str, Any]:
+        source_fragment_violations = _source_fragment_violations(rejected_html, components)
+        requirements = self._read_prompt_list("03_layout_correction_requirements.json")
+        if _is_footer_flow_error(error):
+            requirements = [
+                *requirements,
+                "Remove position:absolute and position:fixed from footer, .footer, #footer, and bottom disclaimer CSS.",
+                "Do not anchor footer or bottom disclaimers with bottom/left/right overlay coordinates.",
+                "Do not rely on main padding-bottom or page overflow:hidden to make room for an absolutely positioned footer.",
+                "Rewrite forbidden footer CSS from rejectedHtml instead of copying it.",
+                "Place footer after main content as normal-flow block content; static or relative positioning is acceptable.",
+            ]
+        if _is_template_css_variable_error(error):
+            requirements = [
+                *requirements,
+                "Infer --report-primary, --report-accent, --chart-series-1, and --chart-series-2 from the attached template preview image.",
+                "Define those CSS variables in document-local CSS before using them.",
+                "Do not use supplied JSON color values or a generic blue palette for these CSS variables.",
+            ]
+        if source_fragment_violations:
+            requirements = [
+                *requirements,
+                "Render every sourceFragmentViolations.missingFragments item exactly as visible text in the corrected HTML.",
+                "Do not remove sign prefixes, percent symbols, currency or unit symbols, commas, or decimal points.",
+                "Do not move unit symbols from table cells into a separate footnote when the source table cells include them.",
+            ]
         return {
             **prompt_input,
             "correction": {
                 "attempt": 1,
                 "previousError": str(error),
-                "requirements": self._read_prompt_list("03_layout_correction_requirements.json"),
+                "requirements": requirements,
+                "sourceFragmentViolations": source_fragment_violations,
                 "rejectedHtml": rejected_html,
             },
         }
 
     def _validate_source_fragments_preserved(self, html: str, components: list[Stage2Component]) -> None:
-        document_text = _normalize_text(" ".join(_extract_text_fragments(html)))
-        missing_by_component: list[str] = []
-        for component in components:
-            if _is_chart_component(component):
-                continue
-            missing_fragments = [
-                fragment
-                for fragment in _source_fragments(component.html)
-                if fragment not in document_text
-            ]
-            if missing_fragments:
-                preview = ", ".join(missing_fragments[:3])
-                missing_by_component.append(f"{component.componentId}: {preview}")
+        violations = _source_fragment_violations(html, components)
+        missing_by_component = [
+            f"{violation['componentId']}: {', '.join(violation['missingFragments'][:3])}"
+            for violation in violations
+        ]
         if missing_by_component:
             raise self._invalid(
                 "Stage 3 layout output changed or omitted source fragments: "
@@ -179,13 +203,16 @@ _GLOBAL_CHART_RENDER_PATTERN = re.compile(
     r"(<canvas\b|<script\b|new\s+Chart\s*\(|chart\.js|chartjs)",
     re.IGNORECASE,
 )
-_FOOTER_OVERLAP_RISK_PATTERN = re.compile(
-    r"("
-    r"(?:footer|\.footer|#footer)[^{]*\{[^}]*position\s*:\s*(?:absolute|fixed)\b"
-    r"|<footer\b[^>]*style\s*=\s*['\"][^'\"]*position\s*:\s*(?:absolute|fixed)\b"
-    r")",
+_FOOTER_INLINE_POSITION_PATTERN = re.compile(
+    r"<footer\b[^>]*style\s*=\s*(['\"])[^'\"]*position\s*:\s*(?:absolute|fixed)\b",
     re.IGNORECASE | re.DOTALL,
 )
+_CSS_RULE_PATTERN = re.compile(r"([^{}]+)\{([^{}]*)\}", re.DOTALL)
+_CSS_COMMENT_PATTERN = re.compile(r"/\*.*?\*/", re.DOTALL)
+_FORBIDDEN_POSITION_PATTERN = re.compile(r"\bposition\s*:\s*(?:absolute|fixed)\b", re.IGNORECASE)
+_FOOTER_TAG_SELECTOR_PATTERN = re.compile(r"(^|[\s>+~])footer(?=$|[\s.#:\[>+~])", re.IGNORECASE)
+_FOOTER_CLASS_SELECTOR_PATTERN = re.compile(r"(^|[\s>+~])\.footer(?=$|[\s.#:\[>+~])", re.IGNORECASE)
+_FOOTER_ID_SELECTOR_PATTERN = re.compile(r"(^|[\s>+~])#footer(?=$|[\s.#:\[>+~])", re.IGNORECASE)
 _STYLE_BLOCK_PATTERN = re.compile(r"<style\b[^>]*>(.*?)</style>", re.IGNORECASE | re.DOTALL)
 _EXTERNAL_RESOURCE_PATTERN = re.compile(
     r"("
@@ -195,6 +222,12 @@ _EXTERNAL_RESOURCE_PATTERN = re.compile(
     r"|url\(\s*['\"]?\s*(?:https?:)?//"
     r")",
     re.IGNORECASE | re.DOTALL,
+)
+_REQUIRED_TEMPLATE_CSS_VARIABLES = (
+    "--report-primary",
+    "--report-accent",
+    "--chart-series-1",
+    "--chart-series-2",
 )
 
 
@@ -238,6 +271,42 @@ def _has_document_local_css(html: str) -> bool:
     return False
 
 
+def _missing_template_css_variables(html: str) -> list[str]:
+    css = "\n".join(match.group(1) for match in _STYLE_BLOCK_PATTERN.finditer(html))
+    return [name for name in _REQUIRED_TEMPLATE_CSS_VARIABLES if not re.search(rf"{re.escape(name)}\s*:", css)]
+
+
+def _has_footer_overlap_risk(html: str) -> bool:
+    if _FOOTER_INLINE_POSITION_PATTERN.search(html):
+        return True
+    for style_match in _STYLE_BLOCK_PATTERN.finditer(html):
+        css = _CSS_COMMENT_PATTERN.sub("", style_match.group(1))
+        for rule_match in _CSS_RULE_PATTERN.finditer(css):
+            selectors, declarations = rule_match.groups()
+            if not _FORBIDDEN_POSITION_PATTERN.search(declarations):
+                continue
+            if any(_selector_targets_footer(selector.strip()) for selector in selectors.split(",")):
+                return True
+    return False
+
+
+def _selector_targets_footer(selector: str) -> bool:
+    return bool(
+        _FOOTER_TAG_SELECTOR_PATTERN.search(selector)
+        or _FOOTER_CLASS_SELECTOR_PATTERN.search(selector)
+        or _FOOTER_ID_SELECTOR_PATTERN.search(selector)
+    )
+
+
+def _is_footer_flow_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return "footer" in message and "normal document flow" in message
+
+
+def _is_template_css_variable_error(error: Exception) -> bool:
+    return "template-derived css variables" in str(error).lower()
+
+
 def _has_forbidden_chart_rendering(html: str, components: list[Stage2Component]) -> bool:
     if _GLOBAL_CHART_RENDER_PATTERN.search(html):
         return True
@@ -257,6 +326,28 @@ def _source_fragments(html: str) -> list[str]:
         if normalized:
             fragments.append(normalized)
     return fragments
+
+
+def _source_fragment_violations(html: str, components: list[Stage2Component]) -> list[dict[str, Any]]:
+    document_text = _normalize_text(" ".join(_extract_text_fragments(html)))
+    violations: list[dict[str, Any]] = []
+    for component in components:
+        if _is_chart_component(component):
+            continue
+        missing_fragments = [
+            fragment
+            for fragment in _source_fragments(component.html)
+            if fragment not in document_text
+        ]
+        if missing_fragments:
+            violations.append(
+                {
+                    "componentId": component.componentId,
+                    "componentKey": component.componentKey,
+                    "missingFragments": missing_fragments,
+                }
+            )
+    return violations
 
 
 def _extract_text_fragments(html: str) -> list[str]:

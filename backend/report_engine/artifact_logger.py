@@ -37,6 +37,14 @@ class ArtifactLogger:
         path.write_text(text, encoding="utf-8")
         return path
 
+    def append_json_line(self, relative_path: str | Path, data: Any) -> Path:
+        path = self._resolve(relative_path)
+        payload = self._redact(data)
+        text = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
+        with path.open("a", encoding="utf-8") as file:
+            file.write(text)
+        return path
+
     def write_text(self, relative_path: str | Path, text: str) -> Path:
         path = self._resolve(relative_path)
         path.write_text(redact_secret_values(text, self.secrets), encoding="utf-8")

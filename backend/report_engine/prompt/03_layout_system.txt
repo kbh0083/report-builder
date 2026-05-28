@@ -2,8 +2,10 @@
 # ko: 원시 HTML만 반환하고 정확히 <!doctype html>로 시작하세요.
 # ko: 답변을 Markdown 코드 블록으로 감싸거나 설명을 추가하지 마세요.
 # ko: 템플릿 미리보기 이미지를 최대한 가깝게 맞추되, 이는 시각 참고용일 뿐입니다.
+# ko: 색상 값이나 스타일 템플릿은 제공되지 않으므로, 첨부된 템플릿 미리보기 이미지에서 브랜드 팔레트, 강조색, 헤더/표/섹션 스타일을 직접 추론하세요.
+# ko: 추론한 색상으로 --report-primary, --report-accent, --chart-series-1, --chart-series-2 CSS 변수를 정의하세요.
 # ko: 제공된 Stage 2 컴포넌트만 리포트 데이터, 표 레이블, 값, 문구의 유일한 출처로 사용하세요.
-# ko: 템플릿 sourceHtml이나 미리보기 이미지에서 데이터 레이블, 표 값, 문구를 복사하지 마세요.
+# ko: 템플릿 미리보기 이미지에서 데이터 레이블, 표 값, 문구를 복사하지 마세요.
 # ko: 비어 있지 않은 <style> 블록에 문서 내부 CSS를 생성하세요.
 # ko: 외부 CSS 파일, @import, 외부 폰트, 외부 네트워크 리소스를 사용하지 마세요.
 # ko: CSS는 A4 세로 레이아웃, 헤더/푸터/브랜드, 섹션 간격, 타이포그래피, 표/목록/기사 스타일, 차트 placeholder 공간, 하단 안전 영역을 포함해야 합니다.
@@ -12,13 +14,16 @@
 # ko: 푸터와 하단 고지 문구는 정상 문서 흐름에 두고, position:absolute 또는 position:fixed를 절대 사용하지 마세요.
 # ko: 마지막 섹션이 푸터 텍스트와 겹치지 않도록 하단 안전 영역을 확보하세요.
 # ko: 제공된 모든 Stage 2 컴포넌트 id를 보존하고 원본 값을 변경하지 마세요.
+# ko: 차트가 아닌 컴포넌트는 각 컴포넌트 id를 data-component-id 속성 값으로 보존하고, id 속성으로 대체하지 마세요.
 
 Generate a single complete A4 portrait HTML document.
 Return raw HTML only and start exactly with <!doctype html>.
 Do not wrap the answer in Markdown fences or add explanations.
 Match the template preview image as closely as possible; it is a visual reference only.
+No color values or style template are supplied in JSON; infer the brand palette, accent colors, header styling, table styling, and section styling from the attached template preview image.
+Define --report-primary, --report-accent, --chart-series-1, and --chart-series-2 CSS variables using colors inferred from the attached template preview image.
 Use supplied Stage 2 components as the only source for report data, table labels, values, and prose.
-Do not copy data labels, table values, or prose from template sourceHtml or preview image.
+Do not copy data labels, table values, or prose from template preview image.
 Generate document-local CSS in a non-empty <style> block.
 Do not use external CSS files, @import, external fonts, or external network resources.
 CSS must cover A4 portrait layout, header/footer/brand, section spacing, typography, table/list/article styling, chart placeholder space, and bottom safe area.
@@ -27,3 +32,4 @@ Do not render charts using SVG, canvas, script, Chart.js, or other chart renderi
 Keep footer and bottom disclaimers in normal document flow; never use position:absolute or position:fixed for them.
 Reserve a bottom safe area so the final section never overlaps footer text.
 Preserve every supplied Stage 2 component id and do not change source values.
+For non-chart components, preserve each component id as a data-component-id attribute value; do not replace it with an id attribute.

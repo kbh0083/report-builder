@@ -42,15 +42,11 @@ class DataCatalogTests(unittest.TestCase):
 
         for template in catalog["templates"]:
             self.assertEqual(template["page"], {"size": "A4", "orientation": "portrait"})
-            self.assertTrue(
-                template["sourceHtml"].startswith("backend/data/report_template/"),
-                template["sourceHtml"],
-            )
+            self.assertNotIn("sourceHtml", template)
             self.assertTrue(
                 template["previewImage"].startswith("backend/data/report_template/"),
                 template["previewImage"],
             )
-            self.assertTrue((WORKSPACE_ROOT / template["sourceHtml"]).is_file())
             self.assertTrue((WORKSPACE_ROOT / template["previewImage"]).is_file())
 
     def test_datasets_have_dataset_ids_and_no_embedded_template(self):
@@ -62,7 +58,14 @@ class DataCatalogTests(unittest.TestCase):
 
         for dataset in datasets:
             self.assertNotIn("template", dataset)
+            self.assertNotIn("styleCandidates", dataset)
             self.assertEqual([snapshot["monthId"] for snapshot in dataset["monthlySnapshots"]], ["2026-01", "2026-02", "2026-03"])
+
+    def test_legacy_dataset_samples_do_not_embed_style_candidates(self):
+        for path in DATA_DIR.glob("*.dataset.sample.json"):
+            with self.subTest(path=path.name):
+                sample = load_json(path)
+                self.assertNotIn("styleCandidates", sample)
 
     def test_stage2_source_catalog_uses_dataset_ids(self):
         catalog = load_json(DATA_DIR / "etf_stage2_component_sources.json")

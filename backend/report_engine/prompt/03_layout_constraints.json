@@ -1,13 +1,16 @@
 // ko: 완전한 HTML 문서 하나를 반환하세요.
 // ko: 템플릿 미리보기 이미지를 최대한 가깝게 맞추세요.
-// ko: sourceHtml, styleCandidates, 템플릿 미리보기 이미지는 시각 참고용으로만 사용하세요.
+// ko: 색상 값이나 스타일 템플릿은 제공되지 않으므로, 첨부된 템플릿 미리보기 이미지에서 브랜드 팔레트, 강조색, 헤더/표/섹션 스타일을 직접 추론하세요.
+// ko: 추론한 색상으로 --report-primary, --report-accent, --chart-series-1, --chart-series-2 CSS 변수를 정의하세요.
 // ko: 제공된 Stage 2 컴포넌트만 리포트 데이터, 표 레이블, 값, 문구의 유일한 출처로 사용하세요.
-// ko: 템플릿 sourceHtml이나 미리보기 이미지에서 데이터 레이블, 표 값, 문구를 복사하지 마세요.
+// ko: 템플릿 미리보기 이미지에서 데이터 레이블, 표 값, 문구를 복사하지 마세요.
 // ko: 비어 있지 않은 <style> 블록에 문서 내부 CSS를 생성하세요.
 // ko: 외부 CSS 파일, @import, 외부 폰트, 외부 네트워크 리소스를 사용하지 마세요.
 // ko: Stage 3 CSS는 A4 세로 레이아웃, 헤더/푸터/브랜드, 섹션 간격, 타이포그래피, 표/목록/기사 스타일, 차트 placeholder 공간, 하단 안전 영역을 포함해야 합니다.
 // ko: 모든 Stage 2 컴포넌트 id를 보존하세요.
+// ko: 차트가 아닌 컴포넌트는 각 컴포넌트 id를 data-component-id 속성 값으로 보존하고, id 속성으로 대체하지 마세요.
 // ko: 원본 숫자나 원본 문구를 변경하지 마세요.
+// ko: 표 셀의 부호, %, 통화/단위 기호, 쉼표, 소수점은 원문 그대로 보존하고 별도 주석으로 옮기지 마세요.
 // ko: 외부 네트워크 리소스를 참조하지 마세요.
 // ko: Stage 3에서 차트를 렌더링하지 마세요.
 // ko: 차트 컴포넌트는 data-chart-placeholder 컨테이너로만 유지하고, Stage 4에서 차트 asset을 렌더링합니다.
@@ -19,14 +22,18 @@
 [
   "Return one complete HTML document.",
   "Match the template preview image as closely as possible.",
-  "Use sourceHtml, styleCandidates, and template preview image only as visual references.",
+  "Infer the report palette, accent colors, header styling, table styling, and section styling from the attached template preview image.",
+  "Define --report-primary, --report-accent, --chart-series-1, and --chart-series-2 CSS variables from the attached template preview image.",
+  "Do not use supplied JSON color values or a generic blue palette; no style template is provided.",
   "Use supplied Stage 2 components as the only source for report data, table labels, values, and prose.",
-  "Do not copy data labels, table values, or prose from template sourceHtml or preview image.",
+  "Do not copy data labels, table values, or prose from template preview image.",
   "Generate document-local CSS in a non-empty <style> block.",
   "Do not use external CSS files, @import, external fonts, or external network resources.",
   "Stage 3 CSS must cover A4 portrait layout, header/footer/brand, section spacing, typography, table/list/article styling, chart placeholder space, and bottom safe area.",
   "Preserve every Stage 2 component id.",
+  "For non-chart components, preserve each component id as a data-component-id attribute value; do not replace it with an id attribute.",
   "Do not change source numbers or source wording.",
+  "Preserve table-cell signs, percent symbols, currency or unit symbols, commas, and decimal points exactly; do not move them into separate footnotes.",
   "Do not reference external network resources.",
   "Do not render charts in Stage 3.",
   "Keep chart components as data-chart-placeholder containers only; Stage 4 renders chart assets.",

@@ -1,6 +1,10 @@
 // ko: 완전한 HTML 문서 하나를 반환하세요.
 // ko: 누락된 CSS, 누락된 컴포넌트, 누락된 차트 placeholder, 생략된 원본 조각, 차트 렌더링 마크업, 푸터 흐름 위반을 수정하세요.
+// ko: 첨부된 템플릿 미리보기 이미지에서 추론한 색상으로 --report-primary, --report-accent, --chart-series-1, --chart-series-2 CSS 변수를 정의하세요.
 // ko: 차트가 아닌 모든 Stage 2 표 헤더, 표 셀, 문단, 목록 항목을 표시 텍스트 그대로 보존하세요.
+// ko: 차트가 아닌 컴포넌트는 각 컴포넌트 id를 data-component-id 속성 값으로 복원하고, id 속성으로 대체하지 마세요.
+// ko: 누락된 원본 조각은 correction.sourceFragmentViolations에 제공되며, 모든 항목을 표시 텍스트로 정확히 복원하세요.
+// ko: 표 셀의 부호, %, 통화/단위 기호, 쉼표, 소수점은 원문 그대로 보존하고 별도 주석으로 옮기지 마세요.
 // ko: 차트 컴포넌트는 정확한 data-chart-placeholder 컨테이너로만 유지하고, Stage 3에서 차트를 렌더링하지 마세요.
 // ko: SVG, canvas, script 또는 Chart.js로 차트를 렌더링하지 마세요.
 // ko: 각 차트 컴포넌트는 값이 componentId인 data-chart-placeholder 속성을 정확히 하나 포함해야 합니다.
@@ -8,9 +12,16 @@
 [
   "Return one complete HTML document.",
   "Fix missing CSS, missing components, missing chart placeholders, omitted source fragments, chart rendering markup, and footer flow violations.",
+  "Infer --report-primary, --report-accent, --chart-series-1, and --chart-series-2 from the attached template preview image and define them in document-local CSS.",
   "Preserve every non-chart Stage 2 table header, table cell, paragraph, and list item exactly as visible text.",
+  "For non-chart components, restore each component id as a data-component-id attribute value; do not replace it with an id attribute.",
+  "Use correction.sourceFragmentViolations as the exact checklist of omitted source text and render every missing fragment visibly.",
+  "Preserve table-cell signs, percent symbols, currency or unit symbols, commas, and decimal points exactly; do not move them into separate footnotes.",
   "Keep chart components as exact data-chart-placeholder containers only; do not render charts in Stage 3.",
   "Do not render charts using SVG, canvas, script, or Chart.js.",
   "Each chart component must include exactly one data-chart-placeholder attribute whose value is the componentId.",
+  "When correcting footer flow violations, remove position:absolute and position:fixed from footer, .footer, #footer, and bottom disclaimer CSS.",
+  "When correcting footer flow violations, do not anchor footer or bottom disclaimers with bottom/left/right overlay coordinates.",
+  "When correcting footer flow violations, rewrite forbidden footer CSS from rejectedHtml instead of copying it.",
   "Return raw HTML only; do not include Markdown fences or explanations."
 ]

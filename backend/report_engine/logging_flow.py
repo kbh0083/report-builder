@@ -1,17 +1,20 @@
 import base64
 import json
 import os
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime
 from html import escape
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from uuid import uuid4
 
 from .artifact_logger import ArtifactLogger
 from .chart_renderer import ChartRenderer
+from .errors import ErrorCode, ReportEngineError
 from .llm import LlmAdapter, NovitaLlmAdapter
 from .llm_call_logger import LlmCallLogger
 from .models import ReportJobRequest, Stage2Component
@@ -21,10 +24,28 @@ from .settings import load_llm_settings, parse_env_file
 from .stage1_template import Stage1TemplateService
 from .stage2_components import Stage2ComponentService
 from .stage3_layout import Stage3LayoutService, stage3_component_html
+from .stage5_verification import Stage5VerificationService
+from .stage6_finalize import Stage6Finalizer
 from .version_store import VersionStore
 
 
 ProgressCallback = Callable[[dict[str, object]], None]
+
+
+class JobEventSink:
+    def __init__(self, logger: ArtifactLogger, progress_callback: ProgressCallback | None):
+        self.logger = logger
+        self.progress_callback = progress_callback
+        self._lock = Lock()
+
+    def emit(self, event: dict[str, object]) -> None:
+        self.record(event)
+        if self.progress_callback is not None:
+            self.progress_callback(event)
+
+    def record(self, event: dict[str, object]) -> None:
+        with self._lock:
+            self.logger.append_json_line("events.jsonl", event)
 
 
 def run_with_artifact_logging(
@@ -35,29 +56,36 @@ def run_with_artifact_logging(
     chart_renderer: ChartRenderer | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> dict[str, object]:
+    job_started_at = _now_iso()
+    job_started = time.perf_counter()
     backend_path = Path(backend_root) if backend_root else Path(__file__).resolve().parents[1]
     workspace_root = backend_path.parent
     job_id = _new_job_id()
     logger = ArtifactLogger(backend_path / "log", job_id, secrets=_collect_secret_values(backend_path))
+    event_sink = JobEventSink(logger, progress_callback)
     llm_call_logger = LlmCallLogger(logger)
     active_llm_adapter = llm_adapter or _load_default_llm_adapter(backend_path, request, llm_call_logger)
     active_llm_adapter = _with_llm_call_logging(active_llm_adapter, llm_call_logger)
-    active_llm_adapter = _with_llm_progress(active_llm_adapter, job_id, progress_callback)
+    active_llm_adapter = _with_llm_progress(active_llm_adapter, job_id, event_sink.emit)
 
     repository = ReportRepository(workspace_root)
     template_service = Stage1TemplateService(repository)
     component_service = Stage2ComponentService(repository, llm_adapter=active_llm_adapter)
 
-    with _stage(progress_callback, job_id, "00_request"):
+    with _stage(event_sink.emit, job_id, "00_request"):
         logger.write_json("00_request/request.json", asdict(request))
 
-    with _stage(progress_callback, job_id, "01_template"):
+    with _stage(event_sink.emit, job_id, "01_template"):
         dataset = repository.load_dataset(request.datasetId)
         month_snapshot = repository.load_month_snapshot(request.datasetId, request.monthId)
         template_context = template_service.load_template_context(request.templateId)
         logger.write_json("01_template/template_context.json", template_context)
+        logger.write_json(
+            "01_template/selection_context.json",
+            _selection_context_payload(dataset, month_snapshot, template_context),
+        )
 
-    with _stage(progress_callback, job_id, "02_components"):
+    with _stage(event_sink.emit, job_id, "02_components"):
         component_sources = repository.load_component_sources(request.datasetId, request.monthId)
         logger.write_json("02_components/component_sources.json", component_sources)
 
@@ -69,7 +97,7 @@ def run_with_artifact_logging(
         logger.write_json("02_components/components.json", components)
         _write_component_html(logger, components)
 
-    with _stage(progress_callback, job_id, "03_layout"):
+    with _stage(event_sink.emit, job_id, "03_layout"):
         layout_service = Stage3LayoutService(active_llm_adapter) if active_llm_adapter else None
         prompt_input = (
             layout_service.build_prompt_input(template_context, dataset, month_snapshot, components)
@@ -86,7 +114,7 @@ def run_with_artifact_logging(
         )
         draft_path = logger.write_html("03_layout/report_draft.html", report_draft_html)
 
-    with _stage(progress_callback, job_id, "04_render"):
+    with _stage(event_sink.emit, job_id, "04_render"):
         active_renderer = renderer or PlaywrightRenderer()
         active_chart_renderer = chart_renderer or ChartRenderer()
         chart_html = active_chart_renderer.render_and_inject(report_draft_html, components)
@@ -104,37 +132,71 @@ def run_with_artifact_logging(
             },
         )
 
-    with _stage(progress_callback, job_id, "05_verification"):
+    with _stage(event_sink.emit, job_id, "05_verification"):
+        revision_factory = None
+        if request.verificationMode == "novita":
+            revision_factory = lambda failed_version, verification_result: _create_revision_version(
+                layout_service=layout_service,
+                prompt_input=prompt_input,
+                components=components,
+                template_image_data_url=template_image_data_url,
+                chart_renderer=active_chart_renderer,
+                renderer=active_renderer,
+                version_store=version_store,
+                logger=logger,
+                job_id=job_id,
+                failed_version=failed_version,
+                verification_result=verification_result,
+            )
+        verification_loop = Stage5VerificationService().verify_until_passed(
+            report_version,
+            verification_mode=request.verificationMode,
+            max_iterations=request.maxIterations,
+            adapter=active_llm_adapter,
+            create_revision=revision_factory,
+            template_context=template_context,
+        )
+        logger.write_json("05_verification/verification.json", verification_loop.attempts[-1].to_json())
         logger.write_json(
-            "05_verification/verification.json",
-            {
-                "mode": request.verificationMode,
-                "passed": request.verificationMode == "manual-pass",
-                "issues": [],
-            },
+            "05_verification/verification_loop.json",
+            _verification_loop_payload(request.verificationMode, verification_loop),
         )
 
-    with _stage(progress_callback, job_id, "06_final"):
+    with _stage(event_sink.emit, job_id, "06_final"):
+        final_report = Stage6Finalizer(_resolve_output_root(backend_path, request.outputDir)).finalize(
+            job_id,
+            verification_loop.attempts,
+        )
+        job_completed_at = _now_iso()
+        total_duration_ms = max(1, round((time.perf_counter() - job_started) * 1000))
+        total_duration = _format_duration_mm_ss(total_duration_ms)
         logger.write_json(
             "06_final/final_result.json",
             {
-                "status": "logged",
-                "jobId": job_id,
-                "reportDraftPath": str(draft_path),
-                "version": report_version.version,
-                "reportHtmlPath": report_version.htmlPath,
-                "previewImagePath": report_version.previewImagePath,
+                **asdict(final_report),
+                "version": final_report.sourceVersion,
+                "status": "finalized",
+                "jobStartedAt": job_started_at,
+                "jobCompletedAt": job_completed_at,
+                "totalDurationMs": total_duration_ms,
+                "totalDuration": total_duration,
             },
         )
 
-    return {
+    final_event = {
         "event": "job.logged",
         "jobId": job_id,
         "logPath": str(logger.job_dir),
-        "version": report_version.version,
-        "reportHtmlPath": report_version.htmlPath,
-        "previewImagePath": report_version.previewImagePath,
+        "version": final_report.sourceVersion,
+        "reportHtmlPath": final_report.reportHtmlPath,
+        "previewImagePath": final_report.previewImagePath,
+        "jobStartedAt": job_started_at,
+        "jobCompletedAt": job_completed_at,
+        "totalDurationMs": total_duration_ms,
+        "totalDuration": total_duration,
     }
+    event_sink.record(final_event)
+    return final_event
 
 
 def event_to_stdout_line(event: dict[str, Any]) -> str:
@@ -144,6 +206,16 @@ def event_to_stdout_line(event: dict[str, Any]) -> str:
 def _new_job_id() -> str:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"job_{timestamp}_{uuid4().hex[:8]}"
+
+
+def _now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _format_duration_mm_ss(duration_ms: int) -> str:
+    total_seconds = max(0, duration_ms) // 1000
+    minutes, seconds = divmod(total_seconds, 60)
+    return f"{minutes:02d}:{seconds:02d}"
 
 
 def _collect_secret_values(backend_root: Path) -> list[str]:
@@ -229,6 +301,25 @@ class LlmProgressAdapter:
             response_metadata=self._stage3_response_metadata,
         )
 
+    def verify_report_version(self, report_version, *, template_context=None):
+        verifier = getattr(self.delegate, "verify_report_version", None)
+        if verifier is None:
+            raise AttributeError("delegate does not implement verify_report_version")
+        request_metadata = {
+            "version": getattr(report_version, "version", None),
+            "reportHtmlPath": getattr(report_version, "htmlPath", None),
+            "previewImagePath": getattr(report_version, "previewImagePath", None),
+            "templateId": getattr(template_context, "templateId", None),
+            "templatePreviewImage": getattr(template_context, "previewImage", None),
+        }
+        return self._tracked_call(
+            stage="05_verification",
+            task="stage5_verification",
+            request_metadata=request_metadata,
+            call=lambda: verifier(report_version, template_context=template_context),
+            response_metadata=self._stage5_response_metadata,
+        )
+
     def _tracked_call(
         self,
         stage: str,
@@ -284,6 +375,24 @@ class LlmProgressAdapter:
         }
 
     @staticmethod
+    def _stage5_response_metadata(result: Any) -> dict[str, object]:
+        if isinstance(result, dict):
+            issues = result.get("issues", [])
+            return {
+                "responseType": "object",
+                "passed": bool(result.get("passed", False)),
+                "issueCount": len(issues) if isinstance(issues, list) else 0,
+                "revisionRequested": bool(result.get("revisionInstruction")),
+            }
+        issues = getattr(result, "issues", [])
+        return {
+            "responseType": type(result).__name__,
+            "passed": bool(getattr(result, "passed", False)),
+            "issueCount": len(issues) if isinstance(issues, list) else 0,
+            "revisionRequested": bool(getattr(result, "revisionInstruction", None)),
+        }
+
+    @staticmethod
     def _error_metadata(exc: Exception) -> dict[str, object]:
         return {
             "errorType": type(exc).__name__,
@@ -293,13 +402,38 @@ class LlmProgressAdapter:
 
 @contextmanager
 def _stage(progress_callback: ProgressCallback | None, job_id: str, stage: str):
-    _emit_progress(progress_callback, {"event": "stage.started", "jobId": job_id, "stage": stage})
+    started_at = _now_iso()
+    started = time.perf_counter()
+    _emit_progress(
+        progress_callback,
+        {"event": "stage.started", "jobId": job_id, "stage": stage, "startedAt": started_at},
+    )
     try:
         yield
     except Exception:
-        _emit_progress(progress_callback, {"event": "stage.failed", "jobId": job_id, "stage": stage})
+        _emit_progress(
+            progress_callback,
+            {
+                "event": "stage.failed",
+                "jobId": job_id,
+                "stage": stage,
+                "startedAt": started_at,
+                "failedAt": _now_iso(),
+                "durationMs": max(0, round((time.perf_counter() - started) * 1000)),
+            },
+        )
         raise
-    _emit_progress(progress_callback, {"event": "stage.completed", "jobId": job_id, "stage": stage})
+    _emit_progress(
+        progress_callback,
+        {
+            "event": "stage.completed",
+            "jobId": job_id,
+            "stage": stage,
+            "startedAt": started_at,
+            "completedAt": _now_iso(),
+            "durationMs": max(0, round((time.perf_counter() - started) * 1000)),
+        },
+    )
 
 
 def _emit_progress(progress_callback: ProgressCallback | None, event: dict[str, object]) -> None:
@@ -317,6 +451,96 @@ def _performance_chart_component_id(components: list[Stage2Component]) -> str:
         if component.componentKey == "performance_chart":
             return component.componentId
     return ""
+
+
+def _selection_context_payload(dataset, month_snapshot: dict[str, Any], template_context) -> dict[str, Any]:
+    product = dataset.baseData.get("product", {}) if isinstance(dataset.baseData, dict) else {}
+    sales_channel = dataset.baseData.get("salesChannel", {}) if isinstance(dataset.baseData, dict) else {}
+    return {
+        "dataset": {
+            "datasetId": dataset.datasetId,
+            "productName": product.get("productName"),
+            "distributorName": sales_channel.get("distributorName"),
+        },
+        "template": asdict(template_context),
+        "monthSnapshot": {
+            "monthId": month_snapshot.get("monthId"),
+            "asOf": month_snapshot.get("asOf"),
+            "periodLabel": month_snapshot.get("periodLabel"),
+        },
+    }
+
+
+def _verification_loop_payload(mode: str, verification_loop) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "attemptCount": len(verification_loop.attempts),
+        "passedVersion": (
+            verification_loop.passedVersion.version
+            if verification_loop.passedVersion is not None
+            else None
+        ),
+        "attempts": [
+            {
+                **attempt.to_json(),
+                "verificationPath": attempt.verificationPath,
+            }
+            for attempt in verification_loop.attempts
+        ],
+    }
+
+
+def _create_revision_version(
+    *,
+    layout_service: Stage3LayoutService | None,
+    prompt_input: dict[str, Any],
+    components: list[Stage2Component],
+    template_image_data_url: str | None,
+    chart_renderer: ChartRenderer,
+    renderer: HtmlRenderer,
+    version_store: VersionStore,
+    logger: ArtifactLogger,
+    job_id: str,
+    failed_version,
+    verification_result,
+):
+    if layout_service is None:
+        raise ReportEngineError(
+            ErrorCode.CONFIG_INVALID,
+            "Novita verification revision requires a Stage 3 layout service",
+            stage="stage5",
+        )
+    next_version_number = failed_version.version + 1
+    revision_prompt_input = {
+        **prompt_input,
+        "verificationCorrection": {
+            "fromVersion": failed_version.version,
+            "issues": verification_result.issues,
+            "revisionInstruction": verification_result.revisionInstruction,
+        },
+    }
+    revision_prefix = f"05_verification/revisions/v{next_version_number}"
+    logger.write_json(f"{revision_prefix}_prompt_input.json", revision_prompt_input)
+    revised_draft_html = layout_service.generate_report_draft(
+        revision_prompt_input,
+        components,
+        template_image_data_url=template_image_data_url,
+    )
+    revised_chart_html = chart_renderer.render_and_inject(revised_draft_html, components)
+    revised_version = version_store.create_version(job_id, next_version_number, revised_chart_html, renderer)
+    draft_path = logger.write_html(f"{revision_prefix}_report_draft.html", revised_draft_html)
+    logger.write_json(
+        f"{revision_prefix}_render_result.json",
+        {
+            **asdict(revised_version),
+            "status": "rendered",
+            "chartRendered": True,
+            "chartComponentId": _performance_chart_component_id(components),
+            "reportDraftPath": str(draft_path),
+            "revisionFromVersion": failed_version.version,
+        },
+    )
+    return revised_version
 
 
 def _build_offline_prompt_input(
@@ -351,14 +575,15 @@ def _build_report_draft_html(product_name: str, components: list[Stage2Component
         '  <meta charset="utf-8">\n'
         f"  <title>{escaped_product_name}</title>\n"
         "  <style>\n"
+        "    :root { --report-primary: #4b5563; --report-accent: #f3f4f6; --chart-series-1: #4b5563; --chart-series-2: #9ca3af; }\n"
         "    * { box-sizing: border-box; }\n"
         "    @page { size: A4 portrait; margin: 0; }\n"
         "    body { margin: 0; background: #ededed; color: #111; font-family: \"Apple SD Gothic Neo\", \"Malgun Gothic\", Arial, sans-serif; line-height: 1.32; }\n"
         "    main[data-report-product] { width: 210mm; min-height: 297mm; margin: 24px auto; padding: 12mm 10mm 14mm; background: #fff; display: grid; gap: 6mm; }\n"
         "    section, article { break-inside: avoid; }\n"
-        "    h2 { margin: 0 0 3mm; color: #0258ff; font-size: 5mm; }\n"
+        "    h2 { margin: 0 0 3mm; color: var(--report-primary); font-size: 5mm; }\n"
         "    table { width: 100%; border-collapse: collapse; font-size: 3.1mm; }\n"
-        "    th { background: #2d66f3; color: #fff; }\n"
+        "    th { background: var(--report-primary); color: #fff; }\n"
         "    th, td { border: 0.25mm solid #c4c4c4; padding: 1.5mm 2mm; }\n"
         "    ul, ol, p { margin: 0 0 2.5mm; }\n"
         "    [data-chart-placeholder] { min-height: 58mm; border: 0.35mm dashed #8e8e8e; background: #f7f9ff; }\n"

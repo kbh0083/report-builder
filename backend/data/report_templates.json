@@ -5,7 +5,6 @@
     {
       "templateId": "tpl_kb_monthly_guidebook",
       "name": "국민은행 월간 가이드북",
-      "sourceHtml": "backend/data/report_template/우리은행_월간_리포트.html",
       "previewImage": "backend/data/report_template/국민은행_월간_리포트.png",
       "page": {
         "size": "A4",
@@ -15,7 +14,6 @@
     {
       "templateId": "tpl_woori_monthly_report",
       "name": "우리은행 월간 리포트",
-      "sourceHtml": "backend/data/report_template/우리은행_월간_리포트.html",
       "previewImage": "backend/data/report_template/우리은행_월간_리포트.png",
       "page": {
         "size": "A4",

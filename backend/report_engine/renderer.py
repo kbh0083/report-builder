@@ -1,3 +1,6 @@
+import binascii
+import struct
+import zlib
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -10,23 +13,23 @@ class HtmlRenderer(Protocol):
 
 
 class PlaceholderRenderer:
-    """Write a tiny PNG so CLI smoke tests can exercise Stage 4 without a browser."""
+    """Write a displayable browser-free preview placeholder for CLI smoke tests."""
 
-    _PNG_BYTES = (
-        b"\x89PNG\r\n\x1a\n"
-        b"\x00\x00\x00\rIHDR"
-        b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"
-        b"\x1f\x15\xc4\x89"
-        b"\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe"
-        b"\xdc\xccY\xe7"
-        b"\x00\x00\x00\x00IEND\xaeB`\x82"
-    )
+    width = 794
+    height = 1123
+    _png_bytes: bytes | None = None
 
     def render_html_to_png(self, html_path: Path, preview_path: Path) -> Path:
         preview_path = Path(preview_path)
         preview_path.parent.mkdir(parents=True, exist_ok=True)
-        preview_path.write_bytes(self._PNG_BYTES)
+        preview_path.write_bytes(self._placeholder_png())
         return preview_path
+
+    @classmethod
+    def _placeholder_png(cls) -> bytes:
+        if cls._png_bytes is None:
+            cls._png_bytes = _build_placeholder_png(cls.width, cls.height)
+        return cls._png_bytes
 
 
 class PlaywrightRenderer:
@@ -80,3 +83,27 @@ class PlaywrightRenderer:
     @staticmethod
     def _render_failed(detail: str) -> ReportEngineError:
         return ReportEngineError(ErrorCode.RENDER_FAILED, detail, stage="stage4")
+
+
+def _build_placeholder_png(width: int, height: int) -> bytes:
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        for x in range(width):
+            if x < 8 or y < 8 or x >= width - 8 or y >= height - 8:
+                raw.extend((86, 96, 111, 255))
+            elif 32 <= x < width - 32 and 32 <= y < 96:
+                raw.extend((31, 94, 255, 255))
+            else:
+                raw.extend((245, 247, 250, 255))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        + _png_chunk(b"IDAT", zlib.compress(bytes(raw), level=9))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def _png_chunk(kind: bytes, payload: bytes) -> bytes:
+    checksum = binascii.crc32(kind + payload) & 0xFFFFFFFF
+    return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", checksum)

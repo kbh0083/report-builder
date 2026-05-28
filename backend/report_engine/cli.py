@@ -34,6 +34,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     if args.command == "run":
+        renderer_mode, renderer_event = resolve_renderer_mode(
+            args.component_mode,
+            args.verification_mode,
+            args.renderer_mode,
+        )
+        if renderer_event:
+            print(event_to_stdout_line(renderer_event), flush=True)
         request = ReportJobRequest(
             datasetId=args.dataset_id,
             templateId=args.template_id,
@@ -49,7 +56,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 event_to_stdout_line(
                     run_with_artifact_logging(
                         request,
-                        renderer=_build_renderer(args.renderer_mode),
+                        renderer=_build_renderer(renderer_mode),
                         progress_callback=_print_progress,
                     )
                 )
@@ -70,3 +77,22 @@ def _build_renderer(renderer_mode: str):
     if renderer_mode == "placeholder":
         return PlaceholderRenderer()
     return PlaywrightRenderer()
+
+
+def resolve_renderer_mode(
+    component_mode: str,
+    verification_mode: str,
+    renderer_mode: str,
+) -> tuple[str, dict[str, object] | None]:
+    if renderer_mode == "placeholder" and (component_mode == "novita" or verification_mode == "novita"):
+        return "playwright", {
+            "event": "renderer.mode.changed",
+            "requestedRendererMode": "placeholder",
+            "rendererMode": "playwright",
+            "reason": (
+                "renderer-mode=placeholder cannot produce an HTML-matched preview for "
+                f"component-mode={component_mode} verification-mode={verification_mode}; "
+                "using renderer-mode=playwright"
+            ),
+        }
+    return renderer_mode, None

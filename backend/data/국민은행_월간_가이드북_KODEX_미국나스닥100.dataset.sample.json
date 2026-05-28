@@ -2,7 +2,6 @@
   "schemaVersion": "poc.etfMonthlyIssueReport.dataset.v1",
   "template": {
     "id": "kb_kodex_monthly_guidebook_379810",
-    "sourceHtml": "document/report/우리은행_월간_리포트.html",
     "previewImage": "document/report/국민은행_월간_리포트.png",
     "page": {
       "size": "A4",
@@ -456,25 +455,5 @@
         "closing": "공격적 성장주 노출을 원하는 투자자에게 적합하지만 S&P500 대비 변동성 관리가 중요"
       }
     }
-  ],
-  "styleCandidates": {
-    "theme": {
-      "primary": "#0258ff",
-      "chartBlue": "#1967f2",
-      "benchmarkGray": "#8e8e8e",
-      "tableHeaderBlue": "#2d66f3",
-      "ruleGray": "#c4c4c4",
-      "paper": "#ffffff"
-    },
-    "layout": {
-      "pageSize": "A4 portrait",
-      "columns": 2,
-      "mainSections": [
-        "performanceTrend",
-        "topHoldings",
-        "review",
-        "outlook"
-      ]
-    }
-  }
+  ]
 }
