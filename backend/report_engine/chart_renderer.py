@@ -4,18 +4,40 @@ from html import escape
 from typing import Any
 
 from .errors import ErrorCode, ReportEngineError
-from .models import Stage2Component
+from .models import Stage2Component, TemplateContext
 
 
 class ChartRenderer:
     """Render Stage 2 chartSpec data and inject it into the Stage 3 placeholder."""
 
-    def render_and_inject(self, html: str, components: list[Stage2Component]) -> str:
+    def render_and_inject(
+        self,
+        html: str,
+        components: list[Stage2Component],
+        *,
+        template_context: TemplateContext | None = None,
+    ) -> str:
         component = self._performance_chart_component(components)
         spec = self._validate_chart_spec(component.chartSpec)
         colors = _chart_series_colors(html)
-        svg = self._render_line_svg(spec, colors) if spec["type"] == "line" else self._render_bar_svg(spec, colors)
+        effective_type, _ = self._effective_chart_type(spec, template_context)
+        svg = self._render_line_svg(spec, colors) if effective_type == "line" else self._render_bar_svg(spec, colors)
         return self._replace_placeholder(html, component.componentId, svg)
+
+    def describe_chart_rendering(
+        self,
+        components: list[Stage2Component],
+        *,
+        template_context: TemplateContext | None = None,
+    ) -> dict[str, str]:
+        component = self._performance_chart_component(components)
+        spec = self._validate_chart_spec(component.chartSpec)
+        effective_type, source = self._effective_chart_type(spec, template_context)
+        return {
+            "originalChartSpecType": spec["type"],
+            "effectiveChartType": effective_type,
+            "chartTypeSource": source,
+        }
 
     def _performance_chart_component(self, components: list[Stage2Component]) -> Stage2Component:
         charts = [component for component in components if component.componentKey == "performance_chart"]
@@ -58,6 +80,18 @@ class ChartRenderer:
             "labels": normalized_labels,
             "series": normalized_series,
         }
+
+    def _effective_chart_type(
+        self,
+        spec: dict[str, Any],
+        template_context: TemplateContext | None,
+    ) -> tuple[str, str]:
+        profile = template_context.chart_profile_for("performance_chart") if template_context else None
+        if profile is None:
+            return spec["type"], "chart_spec"
+        if profile.templateImageHasChart and profile.detectedChartType:
+            return profile.detectedChartType, "template_image_analysis"
+        return profile.fallbackChartType, "template_contract"
 
     def _numeric_value(self, value: Any) -> float:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):

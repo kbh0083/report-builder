@@ -25,6 +25,57 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(kb_template.previewImage, "backend/data/report_template/국민은행_월간_리포트.png")
         self.assertFalse(hasattr(woori_template, "sourceHtml"))
         self.assertEqual(woori_template.previewImage, "backend/data/report_template/우리은행_월간_리포트.png")
+        self.assertFalse(kb_template.chartProfile["performance_chart"].templateImageHasChart)
+        self.assertIsNone(kb_template.chartProfile["performance_chart"].detectedChartType)
+        self.assertEqual(kb_template.chartProfile["performance_chart"].fallbackChartType, "bar")
+        self.assertTrue(woori_template.chartProfile["performance_chart"].templateImageHasChart)
+        self.assertEqual(woori_template.chartProfile["performance_chart"].detectedChartType, "bar")
+        self.assertEqual(woori_template.chartProfile["performance_chart"].fallbackChartType, "bar")
+        self.assertTrue(woori_template.revisionProfile.preserveInitialGrid)
+        self.assertEqual(woori_template.revisionProfile.revisionMode, "minimal_patch")
+        self.assertEqual(woori_template.revisionProfile.maxPreviewDimensionDriftRatio, 0.15)
+        self.assertIn("header", woori_template.revisionProfile.allowedRevisionTargets)
+        self.assertIn("footer", woori_template.revisionProfile.allowedRevisionTargets)
+        self.assertIn("chart-visual-mock", woori_template.revisionProfile.forbiddenCssTokens)
+        self.assertIsNone(kb_template.revisionProfile)
+
+    def test_rejects_invalid_template_chart_profile(self):
+        import json
+        import tempfile
+
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.repository import ReportRepository
+
+        invalid_catalog = {
+            "schemaVersion": "poc.etfReport.templates.v1",
+            "templateCount": 1,
+            "templates": [
+                {
+                    "templateId": "tpl_invalid",
+                    "name": "Invalid",
+                    "previewImage": "backend/data/report_template/missing.png",
+                    "page": {"size": "A4", "orientation": "portrait"},
+                    "chartProfile": {
+                        "performance_chart": {
+                            "templateImageHasChart": True,
+                            "detectedChartType": "pie",
+                            "fallbackChartType": "bar",
+                        }
+                    },
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir) / "data"
+            data_dir.mkdir()
+            (data_dir / "etf_data.json").write_text('{"datasets":[]}', encoding="utf-8")
+            (data_dir / "report_templates.json").write_text(json.dumps(invalid_catalog), encoding="utf-8")
+
+            with self.assertRaises(ReportEngineError) as caught:
+                ReportRepository(tmpdir).load_template("tpl_invalid")
+
+        self.assertEqual(caught.exception.code, ErrorCode.CONFIG_INVALID)
+        self.assertEqual(caught.exception.stage, "repository")
 
     def test_cross_distributor_dataset_template_combinations_are_allowed(self):
         combinations = [

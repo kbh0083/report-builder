@@ -30,6 +30,7 @@ from .version_store import VersionStore
 
 
 ProgressCallback = Callable[[dict[str, object]], None]
+_STAGE3_MAX_CORRECTION_ATTEMPTS = 3
 
 
 class JobEventSink:
@@ -107,8 +108,15 @@ def run_with_artifact_logging(
         logger.write_json("03_layout/prompt_input.json", prompt_input)
 
         template_image_data_url = _template_image_data_url(workspace_root, template_context) if layout_service else None
+        stage3_attempt_recorder = _stage3_attempt_recorder(logger, _STAGE3_MAX_CORRECTION_ATTEMPTS)
         report_draft_html = (
-            layout_service.generate_report_draft(prompt_input, components, template_image_data_url=template_image_data_url)
+            layout_service.generate_report_draft(
+                prompt_input,
+                components,
+                template_image_data_url=template_image_data_url,
+                max_correction_attempts=_STAGE3_MAX_CORRECTION_ATTEMPTS,
+                attempt_recorder=stage3_attempt_recorder,
+            )
             if layout_service
             else _build_report_draft_html(dataset.baseData["product"]["productName"], components)
         )
@@ -117,7 +125,15 @@ def run_with_artifact_logging(
     with _stage(event_sink.emit, job_id, "04_render"):
         active_renderer = renderer or PlaywrightRenderer()
         active_chart_renderer = chart_renderer or ChartRenderer()
-        chart_html = active_chart_renderer.render_and_inject(report_draft_html, components)
+        chart_html = active_chart_renderer.render_and_inject(
+            report_draft_html,
+            components,
+            template_context=template_context,
+        )
+        chart_rendering = active_chart_renderer.describe_chart_rendering(
+            components,
+            template_context=template_context,
+        )
         chart_component_id = _performance_chart_component_id(components)
         version_store = VersionStore(_resolve_output_root(backend_path, request.outputDir))
         report_version = version_store.create_version(job_id, 1, chart_html, active_renderer)
@@ -128,6 +144,7 @@ def run_with_artifact_logging(
                 "status": "rendered",
                 "chartRendered": True,
                 "chartComponentId": chart_component_id,
+                **chart_rendering,
                 "reportDraftPath": str(draft_path),
             },
         )
@@ -135,37 +152,42 @@ def run_with_artifact_logging(
     with _stage(event_sink.emit, job_id, "05_verification"):
         revision_factory = None
         if request.verificationMode == "novita":
-            revision_factory = lambda failed_version, verification_result: _create_revision_version(
+            revision_factory = lambda failed_version, verification_result, next_version_number: _create_revision_version(
                 layout_service=layout_service,
                 prompt_input=prompt_input,
                 components=components,
                 template_image_data_url=template_image_data_url,
                 chart_renderer=active_chart_renderer,
+                template_context=template_context,
                 renderer=active_renderer,
                 version_store=version_store,
                 logger=logger,
                 job_id=job_id,
                 failed_version=failed_version,
                 verification_result=verification_result,
+                next_version_number=next_version_number,
             )
-        verification_loop = Stage5VerificationService().verify_until_passed(
-            report_version,
-            verification_mode=request.verificationMode,
-            max_iterations=request.maxIterations,
-            adapter=active_llm_adapter,
-            create_revision=revision_factory,
-            template_context=template_context,
-        )
-        logger.write_json("05_verification/verification.json", verification_loop.attempts[-1].to_json())
-        logger.write_json(
-            "05_verification/verification_loop.json",
-            _verification_loop_payload(request.verificationMode, verification_loop),
-        )
+        try:
+            verification_loop = Stage5VerificationService().verify_until_passed(
+                report_version,
+                verification_mode=request.verificationMode,
+                max_iterations=request.maxIterations,
+                adapter=active_llm_adapter,
+                create_revision=revision_factory,
+                template_context=template_context,
+            )
+        except ReportEngineError as exc:
+            verification_loop = getattr(exc, "verification_loop", None)
+            if verification_loop is not None and getattr(verification_loop, "attempts", None):
+                _write_verification_loop_artifacts(logger, request.verificationMode, verification_loop)
+            raise
+        _write_verification_loop_artifacts(logger, request.verificationMode, verification_loop)
 
     with _stage(event_sink.emit, job_id, "06_final"):
         final_report = Stage6Finalizer(_resolve_output_root(backend_path, request.outputDir)).finalize(
             job_id,
             verification_loop.attempts,
+            allow_failed_fallback=bool(getattr(verification_loop, "maxIterationsExceeded", False)),
         )
         job_completed_at = _now_iso()
         total_duration_ms = max(1, round((time.perf_counter() - job_started) * 1000))
@@ -190,6 +212,8 @@ def run_with_artifact_logging(
         "version": final_report.sourceVersion,
         "reportHtmlPath": final_report.reportHtmlPath,
         "previewImagePath": final_report.previewImagePath,
+        "verificationPassed": final_report.verificationPassed,
+        "finalizationReason": final_report.finalizationReason,
         "jobStartedAt": job_started_at,
         "jobCompletedAt": job_completed_at,
         "totalDurationMs": total_duration_ms,
@@ -446,6 +470,41 @@ def _write_component_html(logger: ArtifactLogger, components: list[Stage2Compone
         logger.write_html(f"02_components/html/{component.componentKey}.html", component.html)
 
 
+def _stage3_attempt_recorder(logger: ArtifactLogger, max_correction_attempts: int) -> Callable[[dict[str, Any]], None]:
+    attempts: list[dict[str, Any]] = []
+
+    def record(attempt: dict[str, Any]) -> None:
+        attempt_number = attempt.get("attempt")
+        if not isinstance(attempt_number, int):
+            return
+        html = attempt.get("html")
+        html_path = None
+        if isinstance(html, str):
+            html_path = logger.write_html(
+                f"03_layout/attempts/attempt_{attempt_number}_report_draft.html",
+                html,
+            )
+        payload = {
+            key: value
+            for key, value in attempt.items()
+            if key != "html"
+        }
+        if html_path is not None:
+            payload["htmlPath"] = str(html_path)
+        attempts.append(payload)
+        logger.write_json(
+            "03_layout/layout_validation_loop.json",
+            {
+                "maxCorrectionAttempts": max_correction_attempts,
+                "attemptCount": len(attempts),
+                "passed": bool(attempts and attempts[-1].get("status") == "passed"),
+                "attempts": attempts,
+            },
+        )
+
+    return record
+
+
 def _performance_chart_component_id(components: list[Stage2Component]) -> str:
     for component in components:
         if component.componentKey == "performance_chart":
@@ -480,6 +539,14 @@ def _verification_loop_payload(mode: str, verification_loop) -> dict[str, Any]:
             if verification_loop.passedVersion is not None
             else None
         ),
+        "bestFailedVersion": (
+            verification_loop.bestFailedVersion.version
+            if verification_loop.bestFailedVersion is not None
+            else None
+        ),
+        "bestFailedScore": verification_loop.bestFailedScore,
+        "maxIterationsExceeded": bool(getattr(verification_loop, "maxIterationsExceeded", False)),
+        "regressedVersions": verification_loop.regressedVersions,
         "attempts": [
             {
                 **attempt.to_json(),
@@ -490,6 +557,14 @@ def _verification_loop_payload(mode: str, verification_loop) -> dict[str, Any]:
     }
 
 
+def _write_verification_loop_artifacts(logger: ArtifactLogger, mode: str, verification_loop) -> None:
+    logger.write_json("05_verification/verification.json", verification_loop.attempts[-1].to_json())
+    logger.write_json(
+        "05_verification/verification_loop.json",
+        _verification_loop_payload(mode, verification_loop),
+    )
+
+
 def _create_revision_version(
     *,
     layout_service: Stage3LayoutService | None,
@@ -497,12 +572,14 @@ def _create_revision_version(
     components: list[Stage2Component],
     template_image_data_url: str | None,
     chart_renderer: ChartRenderer,
+    template_context,
     renderer: HtmlRenderer,
     version_store: VersionStore,
     logger: ArtifactLogger,
     job_id: str,
     failed_version,
     verification_result,
+    next_version_number: int,
 ):
     if layout_service is None:
         raise ReportEngineError(
@@ -510,14 +587,24 @@ def _create_revision_version(
             "Novita verification revision requires a Stage 3 layout service",
             stage="stage5",
         )
-    next_version_number = failed_version.version + 1
+    base_report_draft_html = _read_base_report_draft_html(logger, failed_version.version)
+    verification_correction = {
+        "fromVersion": failed_version.version,
+        "baseVersion": failed_version.version,
+        "nextVersion": next_version_number,
+        "revisionMode": "minimal_patch",
+        "issues": verification_result.issues,
+        "revisionInstruction": verification_result.revisionInstruction,
+        "baseReportDraftHtml": base_report_draft_html,
+        "basePreviewSize": _image_size_payload(failed_version.previewImagePath),
+        "revisionContract": _stage5_revision_contract(components),
+    }
+    revision_profile = _template_revision_profile_payload(template_context)
+    if revision_profile is not None:
+        verification_correction["revisionProfile"] = revision_profile
     revision_prompt_input = {
         **prompt_input,
-        "verificationCorrection": {
-            "fromVersion": failed_version.version,
-            "issues": verification_result.issues,
-            "revisionInstruction": verification_result.revisionInstruction,
-        },
+        "verificationCorrection": verification_correction,
     }
     revision_prefix = f"05_verification/revisions/v{next_version_number}"
     logger.write_json(f"{revision_prefix}_prompt_input.json", revision_prompt_input)
@@ -526,7 +613,15 @@ def _create_revision_version(
         components,
         template_image_data_url=template_image_data_url,
     )
-    revised_chart_html = chart_renderer.render_and_inject(revised_draft_html, components)
+    revised_chart_html = chart_renderer.render_and_inject(
+        revised_draft_html,
+        components,
+        template_context=template_context,
+    )
+    chart_rendering = chart_renderer.describe_chart_rendering(
+        components,
+        template_context=template_context,
+    )
     revised_version = version_store.create_version(job_id, next_version_number, revised_chart_html, renderer)
     draft_path = logger.write_html(f"{revision_prefix}_report_draft.html", revised_draft_html)
     logger.write_json(
@@ -536,11 +631,73 @@ def _create_revision_version(
             "status": "rendered",
             "chartRendered": True,
             "chartComponentId": _performance_chart_component_id(components),
+            **chart_rendering,
             "reportDraftPath": str(draft_path),
             "revisionFromVersion": failed_version.version,
         },
     )
     return revised_version
+
+
+def _read_base_report_draft_html(logger: ArtifactLogger, version: int) -> str:
+    relative_path = (
+        Path("03_layout/report_draft.html")
+        if version == 1
+        else Path(f"05_verification/revisions/v{version}_report_draft.html")
+    )
+    path = logger.job_dir / relative_path
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ReportEngineError(
+            ErrorCode.CONFIG_INVALID,
+            f"Revision base draft HTML could not be read: {relative_path}",
+            stage="stage5",
+        ) from exc
+
+
+def _image_size_payload(path: str) -> dict[str, int] | None:
+    size = _png_size(Path(path))
+    if size is None:
+        return None
+    width, height = size
+    return {"width": width, "height": height}
+
+
+def _png_size(path: Path) -> tuple[int, int] | None:
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(24)
+    except OSError:
+        return None
+    if len(header) >= 24 and header.startswith(b"\x89PNG\r\n\x1a\n"):
+        import struct
+
+        return struct.unpack(">II", header[16:24])
+    return None
+
+
+def _stage5_revision_contract(components: list[Stage2Component]) -> dict[str, Any]:
+    return {
+        "templateImageRole": "layout_and_style_only",
+        "preserveAllStage2Components": True,
+        "doNotCopyTemplateTextOrValues": True,
+        "componentIds": [component.componentId for component in components],
+        "componentKeys": [component.componentKey for component in components],
+    }
+
+
+def _template_revision_profile_payload(template_context) -> dict[str, Any] | None:
+    profile = getattr(template_context, "revisionProfile", None)
+    if profile is None:
+        return None
+    return {
+        "revisionMode": profile.revisionMode,
+        "preserveInitialGrid": profile.preserveInitialGrid,
+        "maxPreviewDimensionDriftRatio": profile.maxPreviewDimensionDriftRatio,
+        "allowedRevisionTargets": profile.allowedRevisionTargets,
+        "forbiddenCssTokens": profile.forbiddenCssTokens,
+    }
 
 
 def _build_offline_prompt_input(

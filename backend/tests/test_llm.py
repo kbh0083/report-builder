@@ -6,16 +6,33 @@ from unittest.mock import patch
 
 
 class NovitaLlmAdapterTests(unittest.TestCase):
-    def test_default_stage5_requirements_compare_generated_preview_to_template_preview_tone(self):
+    def test_default_stage5_requirements_reject_template_layout_and_chart_mismatch(self):
         from report_engine.prompt_store import PromptStore
 
-        requirements = PromptStore().read_json("05_verification_requirements.json")
+        prompt_store = PromptStore()
+        system_prompt = prompt_store.read_text("05_verification_system.txt").lower()
+        requirements = prompt_store.read_json("05_verification_requirements.json")
 
         combined = " ".join(requirements).lower()
         self.assertIn("template preview image", combined)
-        self.assertIn("brand color", combined)
-        self.assertIn("visual tone", combined)
-        self.assertIn("do not fail solely because chart type", combined)
+        self.assertIn("section placement", combined)
+        self.assertIn("chart type", combined)
+        self.assertIn("header", combined)
+        self.assertIn("footer", combined)
+        self.assertIn("logo", combined)
+        self.assertIn("only authoritative data source", combined)
+        self.assertIn("do not copy or require template preview text", combined)
+        self.assertIn("section labels", combined)
+        self.assertIn("sample table content", combined)
+        self.assertIn("do not request removal of supplied stage 2 components", combined)
+        self.assertIn("issue-scoped revisioninstruction", combined)
+        self.assertIn("do not request a full html rewrite", combined)
+        self.assertIn("layout, style, visual hierarchy", combined)
+        self.assertIn("stage 2/html versus generated preview", combined)
+        self.assertIn("visual structure or style", system_prompt)
+        self.assertIn("sample content", system_prompt)
+        self.assertIn("must not require", system_prompt)
+        self.assertNotIn("do not fail solely because chart type", combined)
 
     def test_posts_openai_compatible_request_without_streaming(self):
         from report_engine.llm import NovitaLlmAdapter
@@ -518,7 +535,7 @@ class NovitaLlmAdapterTests(unittest.TestCase):
 
     def test_stage5_verification_sends_preview_image_and_html_as_multimodal_json(self):
         from report_engine.llm import NovitaLlmAdapter
-        from report_engine.models import PageSettings, ReportVersion, TemplateContext
+        from report_engine.models import PageSettings, ReportVersion, TemplateContext, TemplateRevisionProfile
         from report_engine.prompt_store import PromptStore
         from report_engine.settings import LlmSettings
 
@@ -687,7 +704,7 @@ class NovitaLlmAdapterTests(unittest.TestCase):
         from report_engine.artifact_logger import ArtifactLogger
         from report_engine.llm import NovitaLlmAdapter
         from report_engine.llm_call_logger import LlmCallLogger
-        from report_engine.models import PageSettings, ReportVersion, TemplateContext
+        from report_engine.models import PageSettings, ReportVersion, TemplateContext, TemplateRevisionProfile
         from report_engine.prompt_store import PromptStore
         from report_engine.settings import LlmSettings
 
@@ -710,9 +727,16 @@ class NovitaLlmAdapterTests(unittest.TestCase):
                 createdAt="2026-05-28T00:00:00+09:00",
             )
             template_context = TemplateContext(
-                templateId="tpl_kb_monthly_guidebook",
+                templateId="tpl_woori_monthly_report",
                 previewImage=str(template_path),
                 page=PageSettings(size="A4", orientation="portrait"),
+                revisionProfile=TemplateRevisionProfile(
+                    revisionMode="minimal_patch",
+                    preserveInitialGrid=True,
+                    maxPreviewDimensionDriftRatio=0.15,
+                    allowedRevisionTargets=["header", "footer"],
+                    forbiddenCssTokens=["columns:", "writing-mode"],
+                ),
             )
             artifact_logger = ArtifactLogger(tmpdir, "job_test", secrets=["secret-key-123"])
             llm_call_logger = LlmCallLogger(artifact_logger)
@@ -751,6 +775,10 @@ class NovitaLlmAdapterTests(unittest.TestCase):
         self.assertEqual(template_image_item["image_url"]["url"], "<image data redacted>")
         self.assertEqual(template_image_item["image_url"]["mimeType"], "image/png")
         self.assertEqual(template_image_item["image_url"]["base64Bytes"], 14)
+        text_payload = json.loads(payload["request"]["messages"][1]["content"][0]["text"])
+        self.assertEqual(text_payload["template"]["revisionProfile"]["revisionMode"], "minimal_patch")
+        self.assertTrue(text_payload["template"]["revisionProfile"]["preserveInitialGrid"])
+        self.assertEqual(text_payload["template"]["revisionProfile"]["forbiddenCssTokens"], ["columns:", "writing-mode"])
 
     def test_default_adapter_uses_fresh_session_per_request_for_parallel_safety(self):
         from report_engine.llm import NovitaLlmAdapter

@@ -15,10 +15,10 @@
 | Stage 0 | CLI 요청 기록 | `backend/log/{jobId}/00_request/request.json` |
 | Stage 1 | dataset/month/template 조회와 템플릿 preview image 확정 | `01_template/template_context.json`, `selection_context.json` |
 | Stage 2 | ETF 데이터 source에서 무스타일 컴포넌트 생성 | `02_components/components.json`, `02_components/html/*.html` |
-| Stage 3 | 템플릿 이미지를 보고 HTML/CSS 레이아웃 생성 | `03_layout/prompt_input.json`, `report_draft.html` |
-| Stage 4 | 차트 SVG 주입과 HTML preview 렌더링 | `backend/runs/{jobId}/vN/report.html`, `preview.png` |
-| Stage 5 | preview image 검증 및 필요 시 revision loop | `vN/verification.json`, `05_verification/verification_loop.json` |
-| Stage 6 | 통과 version을 final 산출물로 확정 | `backend/runs/{jobId}/final/report.html`, `preview.png` |
+| Stage 3 | 템플릿 이미지를 보고 HTML/CSS 레이아웃 생성, local validator/correction/local repair 수행 | `03_layout/prompt_input.json`, `layout_validation_loop.json`, `report_draft.html` |
+| Stage 4 | template chart profile 기준 차트 SVG 주입과 HTML preview 렌더링 | `backend/runs/{jobId}/vN/report.html`, `preview.png`, `04_render/render_result.json` |
+| Stage 5 | template image와 preview image 비교 검증 및 필요 시 revision loop | `vN/verification.json`, `05_verification/verification_loop.json` |
+| Stage 6 | 통과 version 또는 max iteration 소진 시 best failed version을 final 산출물 위치로 확정 | `backend/runs/{jobId}/final/report.html`, `preview.png`, `06_final/final_result.json` |
 
 ### 프로젝트 구조
 
@@ -133,9 +133,18 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m report_engine run \
 
 - Stage 2에서 Novita component call 5개 수행
 - Stage 3에서 template preview image를 첨부한 layout call 수행
-- Stage 4에서 chart placeholder가 SVG chart로 교체됨
+- Stage 3 validator 실패 시 correction 최대 3회와 source fragment local repair 수행
+- Stage 4에서 chart placeholder가 template chart profile 기준 SVG chart로 교체됨
 - Stage 5에서 generated preview image와 template preview image를 함께 검증
-- `verification.json`의 `passed`가 `true`인 version이 `final/`로 복사됨
+- `verification.json`의 `passed`가 `true`인 version이 있으면 해당 version이 `final/`로 복사됨
+- max iteration 소진 후 passed version 부재 시 best failed version이 `final/`로 복사되고 `verificationPassed=false`가 기록됨
+
+최근 live 검증 기준:
+
+| 템플릿 | jobId | max iterations | 결과 |
+|---|---|---|---|
+| KB | `job_20260529_112832_03047792` | 2 | v2 `passed=true`, `finalizationReason=passed_verification` |
+| Woori | `job_20260529_113037_92510096` | 2 | 실행 오류 없음, v1 best failed final, `verificationPassed=false`, `finalizationReason=best_failed_after_max_iterations` |
 
 ### 테스트에 사용할 파라미터 정보
 
@@ -150,6 +159,8 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m report_engine run \
 | `--renderer-mode` | preview image 렌더링 방식 | `placeholder`, `playwright` |
 | `--max-iterations` | Stage 5 revision loop 최대 횟수 | `3` |
 | `--output-dir` | `backend` 기준 산출물 저장 경로 | `runs` |
+
+`manual-pass`는 sample/offline smoke 전용이다. `componentMode=novita` 실행은 `verificationMode=novita`만 허용한다.
 
 현재 catalog의 주요 입력 값:
 
@@ -171,7 +182,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover tests -v
 
 ### 결과 산출물 설명
 
-CLI 실행이 성공하면 stdout 마지막 `job.logged` 이벤트에 `jobId`, `reportHtmlPath`, `previewImagePath`, `totalDuration`, `totalDurationMs`가 출력된다.
+CLI 실행이 성공하면 stdout 마지막 `job.logged` 이벤트에 `jobId`, `reportHtmlPath`, `previewImagePath`, `verificationPassed`, `finalizationReason`, `totalDuration`, `totalDurationMs`가 출력된다.
 
 | 경로 | 설명 |
 |---|---|
@@ -179,8 +190,8 @@ CLI 실행이 성공하면 stdout 마지막 `job.logged` 이벤트에 `jobId`, `
 | `backend/runs/{jobId}/v1/preview.png` | 첫 번째 렌더링 version의 preview image |
 | `backend/runs/{jobId}/v1/verification.json` | 해당 version의 Stage 5 검증 결과 |
 | `backend/runs/{jobId}/vN/` | Stage 5가 revision을 요청한 경우 추가 version |
-| `backend/runs/{jobId}/final/report.html` | Stage 5를 통과한 최종 HTML |
-| `backend/runs/{jobId}/final/preview.png` | Stage 5를 통과한 최종 preview image |
+| `backend/runs/{jobId}/final/report.html` | Stage 5를 통과한 version 또는 best failed fallback version의 최종 HTML |
+| `backend/runs/{jobId}/final/preview.png` | Stage 5를 통과한 version 또는 best failed fallback version의 최종 preview image |
 
 ### log 설명
 
@@ -196,15 +207,17 @@ CLI 실행이 성공하면 stdout 마지막 `job.logged` 이벤트에 `jobId`, `
 | `backend/log/{jobId}/02_components/llm_calls/*.json` | Stage 2 Novita 상세 요청/응답 로그 |
 | `backend/log/{jobId}/03_layout/prompt_input.json` | Stage 3 layout prompt 입력 |
 | `backend/log/{jobId}/03_layout/report_draft.html` | Stage 3 LLM이 생성한 draft HTML |
+| `backend/log/{jobId}/03_layout/layout_validation_loop.json` | Stage 3 initial/correction/local repair 검증 이력 |
+| `backend/log/{jobId}/03_layout/attempts/attempt_*_report_draft.html` | Stage 3 attempt별 HTML |
 | `backend/log/{jobId}/03_layout/llm_calls/*.json` | Stage 3 Novita 상세 요청/응답 로그 |
-| `backend/log/{jobId}/04_render/render_result.json` | Stage 4 chart/render/version 결과 |
+| `backend/log/{jobId}/04_render/render_result.json` | Stage 4 chart/render/version 결과. `originalChartSpecType`, `effectiveChartType`, `chartTypeSource` 포함 |
 | `backend/log/{jobId}/05_verification/verification.json` | 마지막 verification attempt 요약 |
 | `backend/log/{jobId}/05_verification/verification_loop.json` | Stage 5 전체 attempt 이력 |
 | `backend/log/{jobId}/05_verification/llm_calls/*.json` | Stage 5 Novita image verification 상세 요청/응답 로그 |
 | `backend/log/{jobId}/05_verification/revisions/*` | verification 실패 후 revision이 생성된 경우의 prompt/render 로그 |
-| `backend/log/{jobId}/06_final/final_result.json` | final HTML/preview 경로, source version, 전체 처리 시간 |
+| `backend/log/{jobId}/06_final/final_result.json` | final HTML/preview 경로, source version, `verificationPassed`, `finalizationReason`, 전체 처리 시간 |
 
-로그에는 실제 API key, Authorization header, image base64 payload가 남지 않도록 redaction한다.
+로그에는 실제 API key, 인증 header, image base64 payload가 남지 않도록 redaction한다.
 
 ## 문서 설명
 
@@ -232,12 +245,14 @@ CLI 실행이 성공하면 stdout 마지막 `job.logged` 이벤트에 `jobId`, `
 | 리포트 엔진 CLI v1 개발 계획 | `document/plan/리포트_엔진_CLI_v1_개발_계획-20260527.md` | backend CLI v1 구현 task, 검증 기준, Novita live 검증 조합을 정리한 개발 계획서 |
 | 리포트 엔진 상세 설계서 | `document/plan/리포트_엔진_상세_설계서-20260527.md` | Stage 1~6 처리 흐름, 데이터/LLM/검증 계약을 상세화한 설계서 |
 | 리포트 엔진 아키텍처 문서 | `document/plan/리포트_엔진_아키텍처_문서-20260527.md` | 주요 컴포넌트 책임, LLM 호출 구조, renderer/version/log architecture를 정리한 문서 |
+| KB/Woori 템플릿 정합성 개선 계획 | `document/plan/KB_Woori_템플릿_정합성_개선_계획-20260529.md` | KB/Woori live 검증 결과, Stage 3 local repair, best failed finalization, 후속 deterministic layout 개선안을 정리한 문서 |
 
 ### handoff 문서
 
 | 문서명 | 문서 위치 | 설명 |
 |---|---|---|
 | Handoff Map | `document/handoff/handoff_sum.md` | 최신 handoff와 누적 handoff 목록을 관리하는 인수인계 index |
+| Stage 3 보정, 템플릿 chart 계약, best-failed final, 문서 최신화 | `document/handoff/handoff_20260529_report_engine_template_contract_docs_ready.md` | Stage 3 local repair, template chart profile, Stage 5/6 반복 종료 정책, KB/Woori live 검증과 문서 최신화 상태를 정리한 최신 handoff |
 | 리포트 엔진 설계 및 템플릿 이미지 반영 | `document/handoff/handoff_20260527_report_engine_design.md` | 초기 설계 문서화, 데이터/템플릿 이미지 반영, 다음 작업 상태를 정리한 handoff |
 | 리포트 엔진 CLI Task 6 착수 준비 | `document/handoff/handoff_20260527_report_engine_cli_task6_ready.md` | CLI Task 1~5 이후 Task 6 착수 조건과 로그 산출물 정책을 정리한 handoff |
 | 리포트 엔진 Task 6 구현 후 Stage 4 착수 준비 | `document/handoff/handoff_20260527_report_engine_task6_stage3_boundary_ready.md` | Task 6 구현 결과, Stage 2/3 경계, Stage 4/5/6 잔여 작업을 정리한 handoff |

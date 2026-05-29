@@ -341,7 +341,7 @@ class CliLoggingTests(unittest.TestCase):
     def test_cli_promotes_placeholder_renderer_for_novita_outputs(self):
         from report_engine.cli import resolve_renderer_mode
 
-        mode, event = resolve_renderer_mode("novita", "manual-pass", "placeholder")
+        mode, event = resolve_renderer_mode("novita", "novita", "placeholder")
 
         self.assertEqual(mode, "playwright")
         self.assertEqual(event["event"], "renderer.mode.changed")
@@ -356,6 +356,27 @@ class CliLoggingTests(unittest.TestCase):
 
         self.assertEqual(mode, "placeholder")
         self.assertIsNone(event)
+
+    def test_cli_rejects_novita_component_mode_with_manual_pass_verification(self):
+        from report_engine.cli import main
+
+        exit_code = main([
+            "run",
+            "--dataset-id",
+            "data_kodex_us_sp500",
+            "--template-id",
+            "tpl_kb_monthly_guidebook",
+            "--month-id",
+            "2026-03",
+            "--component-mode",
+            "novita",
+            "--verification-mode",
+            "manual-pass",
+            "--renderer-mode",
+            "placeholder",
+        ])
+
+        self.assertEqual(exit_code, 1)
 
     def test_run_supports_novita_component_mode_with_injected_fake_adapter(self):
         from report_engine.logging_flow import run_with_artifact_logging
@@ -398,6 +419,10 @@ class CliLoggingTests(unittest.TestCase):
         report_html = Path(event["reportHtmlPath"]).read_text(encoding="utf-8")
         self.assertIn('data-chart-rendered="performance_chart"', report_html)
         self.assertNotIn("data-chart-placeholder", report_html)
+        render_result = json.loads((job_dir / "04_render" / "render_result.json").read_text(encoding="utf-8"))
+        self.assertEqual(render_result["originalChartSpecType"], "line")
+        self.assertEqual(render_result["effectiveChartType"], "bar")
+        self.assertEqual(render_result["chartTypeSource"], "template_contract")
 
     def test_run_supports_fake_novita_verification_revision_loop(self):
         from report_engine.logging_flow import run_with_artifact_logging
@@ -406,7 +431,7 @@ class CliLoggingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             request = ReportJobRequest(
                 datasetId="data_kodex_us_sp500",
-                templateId="tpl_kb_monthly_guidebook",
+                templateId="tpl_woori_monthly_report",
                 monthId="2026-03",
                 componentMode="novita",
                 layoutMode="novita",
@@ -467,18 +492,92 @@ class CliLoggingTests(unittest.TestCase):
             verification_loop = json.loads((job_dir / "05_verification" / "verification_loop.json").read_text(encoding="utf-8"))
             self.assertEqual(verification_loop["mode"], "novita")
             self.assertEqual(verification_loop["passedVersion"], 2)
+            self.assertEqual(verification_loop["bestFailedVersion"], 1)
+            self.assertEqual(verification_loop["bestFailedScore"], 3)
+            self.assertEqual(verification_loop["regressedVersions"], [])
             self.assertEqual([attempt["version"] for attempt in verification_loop["attempts"]], [1, 2])
             self.assertFalse(verification_loop["attempts"][0]["passed"])
+            self.assertEqual(verification_loop["attempts"][0]["verificationScore"], 3)
             self.assertTrue(verification_loop["attempts"][1]["passed"])
+            self.assertEqual(verification_loop["attempts"][1]["verificationScore"], 0)
             revision_prompt = json.loads(
                 (job_dir / "05_verification" / "revisions" / "v2_prompt_input.json").read_text(encoding="utf-8")
             )
             self.assertEqual(revision_prompt["verificationCorrection"]["fromVersion"], 1)
+            self.assertEqual(revision_prompt["verificationCorrection"]["revisionMode"], "minimal_patch")
+            self.assertEqual(revision_prompt["verificationCorrection"]["baseVersion"], 1)
+            self.assertEqual(revision_prompt["verificationCorrection"]["nextVersion"], 2)
+            self.assertIn("<!doctype html>", revision_prompt["verificationCorrection"]["baseReportDraftHtml"])
+            self.assertEqual(
+                revision_prompt["verificationCorrection"]["revisionProfile"]["forbiddenCssTokens"],
+                ["column-count", "columns:", "writing-mode", "chart-visual-mock"],
+            )
+            revision_contract = revision_prompt["verificationCorrection"]["revisionContract"]
+            self.assertEqual(revision_contract["templateImageRole"], "layout_and_style_only")
+            self.assertTrue(revision_contract["preserveAllStage2Components"])
+            self.assertTrue(revision_contract["doNotCopyTemplateTextOrValues"])
+            self.assertEqual(
+                revision_contract["componentKeys"],
+                ["performance_chart", "performance_summary", "top_holdings", "review", "outlook"],
+            )
+            self.assertEqual(
+                revision_contract["componentIds"],
+                [
+                    "comp_data_kodex_us_sp500_2026_03_performance_chart",
+                    "comp_data_kodex_us_sp500_2026_03_performance_summary",
+                    "comp_data_kodex_us_sp500_2026_03_top_holdings",
+                    "comp_data_kodex_us_sp500_2026_03_review",
+                    "comp_data_kodex_us_sp500_2026_03_outlook",
+                ],
+            )
             self.assertTrue((run_root / "v2" / "report.html").is_file())
             self.assertTrue((run_root / "final" / "report.html").is_file())
             self.assertEqual(
                 (run_root / "final" / "report.html").read_text(encoding="utf-8"),
                 (run_root / "v2" / "report.html").read_text(encoding="utf-8"),
+            )
+
+    def test_run_finalizes_best_failed_version_when_user_max_iterations_are_exhausted(self):
+        from report_engine.logging_flow import run_with_artifact_logging
+        from report_engine.models import ReportJobRequest
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            request = ReportJobRequest(
+                datasetId="data_kodex_us_sp500",
+                templateId="tpl_kb_monthly_guidebook",
+                monthId="2026-03",
+                componentMode="novita",
+                layoutMode="novita",
+                verificationMode="novita",
+                maxIterations=2,
+                outputDir=str(Path(tmpdir) / "runs"),
+            )
+            adapter = AlwaysRevisionVerificationFakeAdapter()
+
+            event = run_with_artifact_logging(
+                request,
+                backend_root=BACKEND_ROOT,
+                llm_adapter=adapter,
+                renderer=FakeStage4Renderer(),
+            )
+            job_dir = Path(event["logPath"])
+            self.addCleanup(lambda: shutil.rmtree(job_dir, ignore_errors=True))
+
+            run_root = Path(tmpdir) / "runs" / event["jobId"]
+            verification_loop = json.loads((job_dir / "05_verification" / "verification_loop.json").read_text(encoding="utf-8"))
+            final_result = json.loads((job_dir / "06_final" / "final_result.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(adapter.checked_versions, [1, 2])
+            self.assertIsNone(verification_loop["passedVersion"])
+            self.assertTrue(verification_loop["maxIterationsExceeded"])
+            self.assertEqual(verification_loop["bestFailedVersion"], 1)
+            self.assertEqual(final_result["sourceVersion"], 1)
+            self.assertEqual(final_result["finalizationReason"], "best_failed_after_max_iterations")
+            self.assertFalse(final_result["verificationPassed"])
+            self.assertEqual(event["version"], 1)
+            self.assertEqual(
+                (run_root / "final" / "report.html").read_text(encoding="utf-8"),
+                (run_root / "v1" / "report.html").read_text(encoding="utf-8"),
             )
 
     def test_run_creates_stage4_version_artifacts_with_injected_renderer(self):
@@ -625,6 +724,54 @@ class CliLoggingTests(unittest.TestCase):
         self.assertNotIn("correctionAttempt", stage3_completed[0])
         self.assertEqual(stage3_completed[1]["correctionAttempt"], 1)
         self.assertEqual(adapter.stage3_call_count, 2)
+
+        combined_events = json.dumps(events, ensure_ascii=False)
+        self.assertNotIn("promptInput", combined_events)
+        self.assertNotIn("rejectedHtml", combined_events)
+        self.assertNotIn("<section", combined_events)
+        self.assertNotIn("data:image", combined_events)
+
+    def test_stage3_correction_loop_writes_attempt_artifacts_without_payload_events(self):
+        from report_engine.logging_flow import run_with_artifact_logging
+        from report_engine.models import ReportJobRequest
+
+        request = ReportJobRequest(
+            datasetId="data_kodex_us_sp500",
+            templateId="tpl_kb_monthly_guidebook",
+            monthId="2026-03",
+            componentMode="novita",
+            layoutMode="novita",
+            verificationMode="manual-pass",
+            maxIterations=3,
+            outputDir="runs",
+        )
+        adapter = Stage3ThreeCorrectionFakeAdapter()
+        events = []
+
+        event = run_with_artifact_logging(
+            request,
+            backend_root=BACKEND_ROOT,
+            llm_adapter=adapter,
+            renderer=FakeStage4Renderer(),
+            progress_callback=events.append,
+        )
+        job_dir = Path(event["logPath"])
+        self.addCleanup(lambda: shutil.rmtree(job_dir, ignore_errors=True))
+        self.addCleanup(lambda: shutil.rmtree(BACKEND_ROOT / "runs" / event["jobId"], ignore_errors=True))
+
+        stage3_requests = [
+            item for item in events
+            if item["event"] == "llm.request.started" and item["stage"] == "03_layout"
+        ]
+        self.assertEqual([item.get("correctionAttempt") for item in stage3_requests], [None, 1, 2, 3])
+        self.assertEqual(adapter.stage3_call_count, 4)
+
+        loop = json.loads((job_dir / "03_layout" / "layout_validation_loop.json").read_text(encoding="utf-8"))
+        self.assertEqual(loop["maxCorrectionAttempts"], 3)
+        self.assertEqual([attempt["attempt"] for attempt in loop["attempts"]], [0, 1, 2, 3])
+        self.assertEqual(loop["attempts"][-1]["status"], "passed")
+        for attempt in range(4):
+            self.assertTrue((job_dir / "03_layout" / "attempts" / f"attempt_{attempt}_report_draft.html").is_file())
 
         combined_events = json.dumps(events, ensure_ascii=False)
         self.assertNotIn("promptInput", combined_events)
@@ -914,6 +1061,25 @@ class RevisionVerificationFakeAdapter(FakeTask6Adapter):
         return {"passed": True, "issues": []}
 
 
+class AlwaysRevisionVerificationFakeAdapter(FakeTask6Adapter):
+    def __init__(self):
+        self.checked_versions = []
+
+    def verify_report_version(self, report_version, *, template_context=None):
+        self.checked_versions.append(report_version.version)
+        if report_version.version == 1:
+            return {
+                "passed": False,
+                "issues": [{"code": "header_mismatch", "severity": "major"}],
+                "revisionInstruction": "Patch header only.",
+            }
+        return {
+            "passed": False,
+            "issues": [{"code": "header_mismatch", "severity": "critical"}],
+            "revisionInstruction": "Patch header again.",
+        }
+
+
 class Stage3CorrectionFakeAdapter(FakeTask6Adapter):
     def __init__(self):
         self.stage3_call_count = 0
@@ -922,6 +1088,18 @@ class Stage3CorrectionFakeAdapter(FakeTask6Adapter):
         self.stage3_call_count += 1
         body = "\n".join(item["html"] for item in prompt_input["components"])
         if self.stage3_call_count == 1:
+            return f"<!doctype html><html><body>{body}</body></html>"
+        return super().generate_stage3_layout(prompt_input, template_image_data_url=template_image_data_url)
+
+
+class Stage3ThreeCorrectionFakeAdapter(FakeTask6Adapter):
+    def __init__(self):
+        self.stage3_call_count = 0
+
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        self.stage3_call_count += 1
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        if self.stage3_call_count < 4:
             return f"<!doctype html><html><body>{body}</body></html>"
         return super().generate_stage3_layout(prompt_input, template_image_data_url=template_image_data_url)
 

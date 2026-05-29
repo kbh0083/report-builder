@@ -9,7 +9,7 @@ The JSON object must use this schema:
   "passed": boolean,
   "issues": [
     {
-      "type": "overlap|overflow|clipping|missing_content|data_mismatch|chart_rendering|footer_overlap|other",
+        "type": "overlap|overflow|clipping|missing_content|data_mismatch|chart_rendering|template_mismatch|footer_overlap|other",
       "severity": "minor|major|critical",
       "description": "brief concrete issue description",
       "location": "optional page area, component, or element",
@@ -20,7 +20,11 @@ The JSON object must use this schema:
   "revisionInstruction": "only include when passed is false and a revision should be attempted"
 }
 
-Set passed to true only when the generated preview image appears complete, readable, consistent with the supplied HTML, and visually aligned with the template preview image's brand colors and visual tone.
-Do not fail solely because the chart type, exact grid structure, logo asset, or decorative footer graphic differs from the template when the generated report is readable, complete, and follows the template's general brand color palette and visual tone.
-Set passed to false when content overlaps, overflows, clips, disappears, changes source numbers/text, renders the chart incorrectly, or the footer collides with report content.
+Set passed to true only when the generated preview image appears complete, readable, consistent with the supplied HTML, and closely aligned with the template preview image's layout, brand assets, chart style, section marker style, header structure, and footer structure.
+Treat the template preview image as layout and style reference only. Template preview text, numeric values, section labels, holdings, table headers, and sample content are not authoritative report data and must not require matching report HTML.
+Set passed to false when section placement or visual region structure, header logo/meta/title layout, section title marker imagery, performance chart type/style, footer logo/line/content layout, or overall page geometry substantially differs from the template preview image.
+Set passed to false when content overlaps, overflows, clips, disappears, changes source numbers/text from the supplied report HTML, renders the chart incorrectly, or the footer collides with report content.
+Use missing_content and data_mismatch only for Stage 2/HTML versus generated preview differences. Do not use template-preview sample text, numbers, labels, or section names as data expectations.
+Use template_mismatch only for visual structure or style differences against the template preview image.
 When passed is false, include at least one issue and provide revisionInstruction as concise layout guidance that Stage 3 can apply.
+The revisionInstruction must not require adding template sample content or removing supplied Stage 2 components. Existing Stage 2 components may be restyled, compressed, or repositioned into template-like visual regions, but not deleted or replaced with template sample text.

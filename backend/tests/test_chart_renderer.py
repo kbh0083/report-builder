@@ -48,6 +48,68 @@ class ChartRendererTests(unittest.TestCase):
         self.assertIn("<polyline", rendered)
         self.assertNotIn("data-chart-placeholder", rendered)
 
+    def test_render_and_inject_uses_template_detected_chart_type_before_chart_spec_type(self):
+        from report_engine.chart_renderer import ChartRenderer
+
+        component = _chart_component(
+            chart_spec={
+                "type": "line",
+                "unit": "%",
+                "labels": ["1개월", "3개월"],
+                "series": [
+                    {"name": "ETF", "values": [-4.9, 6.7]},
+                    {"name": "BM", "values": [-5.2, 6.4]},
+                ],
+            }
+        )
+        template_context = _template_context(
+            template_image_has_chart=True,
+            detected_chart_type="bar",
+            fallback_chart_type="bar",
+        )
+
+        rendered = ChartRenderer().render_and_inject(
+            _html_with_placeholder(component.componentId),
+            [component],
+            template_context=template_context,
+        )
+
+        self.assertIn('data-chart-type="bar"', rendered)
+        self.assertIn("<rect", rendered)
+        self.assertNotIn("<polyline", rendered)
+
+    def test_describe_chart_rendering_records_template_chart_type_source(self):
+        from report_engine.chart_renderer import ChartRenderer
+
+        component = _chart_component(
+            chart_spec={
+                "type": "line",
+                "unit": "%",
+                "labels": ["1개월"],
+                "series": [{"name": "ETF", "values": [1.0]}],
+            }
+        )
+
+        woori = _template_context(True, "bar", "bar")
+        kb = _template_context(False, None, "bar")
+
+        self.assertEqual(
+            ChartRenderer().describe_chart_rendering([component], template_context=woori),
+            {
+                "originalChartSpecType": "line",
+                "effectiveChartType": "bar",
+                "chartTypeSource": "template_image_analysis",
+            },
+        )
+        self.assertEqual(
+            ChartRenderer().describe_chart_rendering([component], template_context=kb),
+            {
+                "originalChartSpecType": "line",
+                "effectiveChartType": "bar",
+                "chartTypeSource": "template_contract",
+            },
+        )
+
     def test_render_and_inject_reuses_chart_colors_from_stage3_css_variables(self):
         from report_engine.chart_renderer import ChartRenderer
 
@@ -168,6 +230,23 @@ def _chart_component(chart_spec):
         html='<section data-component-id="comp_chart"><canvas></canvas></section>',
         chartSpec=chart_spec,
         styled=False,
+    )
+
+
+def _template_context(template_image_has_chart, detected_chart_type, fallback_chart_type):
+    from report_engine.models import PageSettings, TemplateChartProfile, TemplateContext
+
+    return TemplateContext(
+        templateId="tpl_test",
+        previewImage="backend/data/report_template/test.png",
+        page=PageSettings(size="A4", orientation="portrait"),
+        chartProfile={
+            "performance_chart": TemplateChartProfile(
+                templateImageHasChart=template_image_has_chart,
+                detectedChartType=detected_chart_type,
+                fallbackChartType=fallback_chart_type,
+            )
+        },
     )
 
 

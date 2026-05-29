@@ -9,6 +9,13 @@
       "page": {
         "size": "A4",
         "orientation": "portrait"
+      },
+      "chartProfile": {
+        "performance_chart": {
+          "templateImageHasChart": false,
+          "detectedChartType": null,
+          "fallbackChartType": "bar"
+        }
       }
     },
     {
@@ -18,6 +25,31 @@
       "page": {
         "size": "A4",
         "orientation": "portrait"
+      },
+      "chartProfile": {
+        "performance_chart": {
+          "templateImageHasChart": true,
+          "detectedChartType": "bar",
+          "fallbackChartType": "bar"
+        }
+      },
+      "revisionProfile": {
+        "revisionMode": "minimal_patch",
+        "preserveInitialGrid": true,
+        "maxPreviewDimensionDriftRatio": 0.15,
+        "allowedRevisionTargets": [
+          "header",
+          "footer",
+          "section_marker",
+          "table_style",
+          "chart_container_style"
+        ],
+        "forbiddenCssTokens": [
+          "column-count",
+          "columns:",
+          "writing-mode",
+          "chart-visual-mock"
+        ]
       }
     }
   ]

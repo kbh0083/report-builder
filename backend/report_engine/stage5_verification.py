@@ -1,6 +1,7 @@
 import json
+import struct
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -19,7 +20,15 @@ class Stage5VerificationAdapter(Protocol):
         """Return visual verification result for a rendered report version."""
 
 
-RevisionFactory = Callable[[ReportVersion, VerificationResult], ReportVersion]
+RevisionFactory = Callable[[ReportVersion, VerificationResult, int], ReportVersion]
+
+_ISSUE_SEVERITY_SCORE = {
+    "critical": 10,
+    "major": 3,
+    "minor": 1,
+}
+_DIMENSION_DRIFT_PENALTY = 9
+_MAX_PREVIEW_DIMENSION_DRIFT_RATIO = 0.15
 
 
 @dataclass(frozen=True)
@@ -29,6 +38,8 @@ class VerificationAttempt:
     verificationPath: str
     mode: str = ""
     verifiedAt: str = ""
+    score: int = 0
+    regressedFromVersion: int | None = None
 
     def to_json(self) -> dict[str, Any]:
         return _verification_payload(
@@ -36,6 +47,8 @@ class VerificationAttempt:
             self.result,
             mode=self.mode,
             verified_at=self.verifiedAt,
+            score=self.score,
+            regressed_from_version=self.regressedFromVersion,
         )
 
 
@@ -44,6 +57,16 @@ class VerificationLoopResult:
     attempts: list[VerificationAttempt]
     passedVersion: ReportVersion | None
     passedAttempt: VerificationAttempt | None
+    bestFailedAttempt: VerificationAttempt | None = None
+    bestFailedScore: int | None = None
+    regressedVersions: list[dict[str, Any]] = field(default_factory=list)
+    maxIterationsExceeded: bool = False
+
+    @property
+    def bestFailedVersion(self) -> ReportVersion | None:
+        if self.bestFailedAttempt is None:
+            return None
+        return self.bestFailedAttempt.reportVersion
 
 
 class Stage5VerificationService:
@@ -65,26 +88,74 @@ class Stage5VerificationService:
             )
 
         attempts: list[VerificationAttempt] = []
+        baseline_size = _image_size(Path(initial_version.previewImagePath))
+        max_dimension_drift_ratio = _max_preview_dimension_drift_ratio(template_context)
+        best_failed_attempt: VerificationAttempt | None = None
+        best_failed_score: int | None = None
+        regressed_versions: list[dict[str, Any]] = []
         current_version = initial_version
         for iteration in range(1, max_iterations + 1):
             result = self._verify_version(current_version, verification_mode, adapter, template_context)
-            attempt = self._write_verification(current_version, verification_mode, result)
+            current_size = _image_size(Path(current_version.previewImagePath))
+            score = _verification_score(result, baseline_size, current_size, max_dimension_drift_ratio)
+            regressed_from_version = (
+                best_failed_attempt.reportVersion.version
+                if not result.passed
+                and best_failed_attempt is not None
+                and best_failed_score is not None
+                and score > best_failed_score
+                else None
+            )
+            attempt = self._write_verification(
+                current_version,
+                verification_mode,
+                result,
+                score=score,
+                regressed_from_version=regressed_from_version,
+            )
             attempts.append(attempt)
             if result.passed:
                 return VerificationLoopResult(
                     attempts=attempts,
                     passedVersion=current_version,
                     passedAttempt=attempt,
+                    bestFailedAttempt=best_failed_attempt,
+                    bestFailedScore=best_failed_score,
+                    regressedVersions=regressed_versions,
+                )
+
+            if best_failed_score is None or score < best_failed_score:
+                best_failed_attempt = attempt
+                best_failed_score = score
+            elif regressed_from_version is not None:
+                regressed_versions.append(
+                    {
+                        "version": current_version.version,
+                        "regressedFromVersion": regressed_from_version,
+                        "score": score,
+                        "bestFailedScore": best_failed_score,
+                    }
                 )
 
             if not result.revisionInstruction:
-                return VerificationLoopResult(attempts=attempts, passedVersion=None, passedAttempt=None)
+                return VerificationLoopResult(
+                    attempts=attempts,
+                    passedVersion=None,
+                    passedAttempt=None,
+                    bestFailedAttempt=best_failed_attempt,
+                    bestFailedScore=best_failed_score,
+                    regressedVersions=regressed_versions,
+                )
 
             if iteration >= max_iterations:
-                raise ReportEngineError(
-                    ErrorCode.VERIFICATION_MAX_ITERATIONS_EXCEEDED,
-                    "Verification requested another revision after maxIterations was reached",
-                    stage="stage5",
+                return VerificationLoopResult(
+                    attempts=attempts,
+                    passedVersion=None,
+                    passedAttempt=None,
+                    bestFailedAttempt=best_failed_attempt,
+                    bestFailedScore=best_failed_score,
+                    regressedVersions=regressed_versions,
+                    maxIterationsExceeded=True,
                 )
             if create_revision is None:
                 raise ReportEngineError(
@@ -93,11 +164,23 @@ class Stage5VerificationService:
                     stage="stage5",
                 )
 
-            next_version = create_revision(current_version, result)
+            revision_base_attempt = best_failed_attempt or attempt
+            next_version = create_revision(
+                revision_base_attempt.reportVersion,
+                revision_base_attempt.result,
+                current_version.version + 1,
+            )
             self._validate_revision(current_version, next_version)
             current_version = next_version
 
-        return VerificationLoopResult(attempts=attempts, passedVersion=None, passedAttempt=None)
+        return VerificationLoopResult(
+            attempts=attempts,
+            passedVersion=None,
+            passedAttempt=None,
+            bestFailedAttempt=best_failed_attempt,
+            bestFailedScore=best_failed_score,
+            regressedVersions=regressed_versions,
+        )
 
     def _verify_version(
         self,
@@ -128,6 +211,9 @@ class Stage5VerificationService:
         report_version: ReportVersion,
         verification_mode: VerificationMode,
         result: VerificationResult,
+        *,
+        score: int = 0,
+        regressed_from_version: int | None = None,
     ) -> VerificationAttempt:
         verified_at = _now_iso()
         version_dir = Path(report_version.htmlPath).parent
@@ -140,6 +226,8 @@ class Stage5VerificationService:
                     result,
                     mode=verification_mode,
                     verified_at=verified_at,
+                    score=score,
+                    regressed_from_version=regressed_from_version,
                 ),
                 ensure_ascii=False,
                 indent=2,
@@ -153,6 +241,8 @@ class Stage5VerificationService:
             verificationPath=str(verification_path),
             mode=verification_mode,
             verifiedAt=verified_at,
+            score=score,
+            regressedFromVersion=regressed_from_version,
         )
 
     def _normalize_result(self, raw: VerificationResult | dict[str, Any]) -> VerificationResult:
@@ -214,6 +304,8 @@ def _verification_payload(
     *,
     mode: str,
     verified_at: str,
+    score: int = 0,
+    regressed_from_version: int | None = None,
 ) -> dict[str, Any]:
     payload = {
         "mode": mode,
@@ -221,10 +313,13 @@ def _verification_payload(
         "version": report_version.version,
         "passed": result.passed,
         "issues": result.issues,
+        "verificationScore": score,
         "reportHtmlPath": report_version.htmlPath,
         "previewImagePath": report_version.previewImagePath,
         "verifiedAt": verified_at,
     }
+    if regressed_from_version is not None:
+        payload["regressedFromVersion"] = regressed_from_version
     if result.revisionInstruction:
         payload["revisionInstruction"] = result.revisionInstruction
     return payload
@@ -232,3 +327,61 @@ def _verification_payload(
 
 def _now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _verification_score(
+    result: VerificationResult,
+    baseline_size: tuple[int, int] | None,
+    current_size: tuple[int, int] | None,
+    max_dimension_drift_ratio: float = _MAX_PREVIEW_DIMENSION_DRIFT_RATIO,
+) -> int:
+    if result.passed:
+        return 0
+    score = sum(_issue_score(issue) for issue in result.issues)
+    if _dimension_drift_exceeded(baseline_size, current_size, max_dimension_drift_ratio):
+        score += _DIMENSION_DRIFT_PENALTY
+    return score
+
+
+def _max_preview_dimension_drift_ratio(template_context: TemplateContext | None) -> float:
+    profile = template_context.revisionProfile if template_context is not None else None
+    if profile is None:
+        return _MAX_PREVIEW_DIMENSION_DRIFT_RATIO
+    ratio = profile.maxPreviewDimensionDriftRatio
+    if ratio <= 0:
+        return _MAX_PREVIEW_DIMENSION_DRIFT_RATIO
+    return ratio
+
+
+def _issue_score(issue: dict[str, Any]) -> int:
+    severity = issue.get("severity")
+    if isinstance(severity, str):
+        return _ISSUE_SEVERITY_SCORE.get(severity.strip().lower(), 1)
+    return 1
+
+
+def _dimension_drift_exceeded(
+    baseline_size: tuple[int, int] | None,
+    current_size: tuple[int, int] | None,
+    max_dimension_drift_ratio: float,
+) -> bool:
+    if baseline_size is None or current_size is None:
+        return False
+    baseline_width, baseline_height = baseline_size
+    current_width, current_height = current_size
+    if baseline_width <= 0 or baseline_height <= 0:
+        return False
+    width_drift = abs(current_width - baseline_width) / baseline_width
+    height_drift = abs(current_height - baseline_height) / baseline_height
+    return max(width_drift, height_drift) > max_dimension_drift_ratio
+
+
+def _image_size(path: Path) -> tuple[int, int] | None:
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(24)
+    except OSError:
+        return None
+    if len(header) >= 24 and header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return struct.unpack(">II", header[16:24])
+    return None

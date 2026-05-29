@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 
@@ -14,11 +14,32 @@ class PageSettings:
 
 
 @dataclass(frozen=True)
+class TemplateChartProfile:
+    templateImageHasChart: bool
+    detectedChartType: str | None
+    fallbackChartType: str
+
+
+@dataclass(frozen=True)
+class TemplateRevisionProfile:
+    revisionMode: str
+    preserveInitialGrid: bool
+    maxPreviewDimensionDriftRatio: float
+    allowedRevisionTargets: list[str] = field(default_factory=list)
+    forbiddenCssTokens: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class TemplateContext:
     templateId: str
     previewImage: str
     page: PageSettings
     name: str | None = None
+    chartProfile: dict[str, TemplateChartProfile] = field(default_factory=dict)
+    revisionProfile: TemplateRevisionProfile | None = None
+
+    def chart_profile_for(self, component_key: str) -> TemplateChartProfile | None:
+        return self.chartProfile.get(component_key)
 
 
 @dataclass(frozen=True)

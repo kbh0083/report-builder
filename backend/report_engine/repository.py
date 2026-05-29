@@ -3,7 +3,14 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ErrorCode, ReportEngineError
-from .models import DatasetContext, PageSettings, Stage2Component, TemplateContext
+from .models import (
+    DatasetContext,
+    PageSettings,
+    Stage2Component,
+    TemplateChartProfile,
+    TemplateContext,
+    TemplateRevisionProfile,
+)
 
 
 class ReportRepository:
@@ -51,6 +58,8 @@ class ReportRepository:
                     name=item.get("name"),
                     previewImage=item["previewImage"],
                     page=PageSettings(size=page["size"], orientation=page["orientation"]),
+                    chartProfile=self._template_chart_profile(item, item["templateId"]),
+                    revisionProfile=self._template_revision_profile(item, item["templateId"]),
                 )
         raise ReportEngineError(
             ErrorCode.TEMPLATE_NOT_FOUND,
@@ -102,6 +111,92 @@ class ReportRepository:
         with (self.data_dir / filename).open(encoding="utf-8") as handle:
             return json.load(handle)
 
+    def _template_chart_profile(
+        self,
+        item: dict[str, Any],
+        template_id: str,
+    ) -> dict[str, TemplateChartProfile]:
+        raw_profile = item.get("chartProfile")
+        if not isinstance(raw_profile, dict):
+            raise self._config_invalid(f"Template chartProfile is required: {template_id}")
+        performance_chart = raw_profile.get("performance_chart")
+        if not isinstance(performance_chart, dict):
+            raise self._config_invalid(f"Template chartProfile.performance_chart is required: {template_id}")
+
+        has_chart = performance_chart.get("templateImageHasChart")
+        if not isinstance(has_chart, bool):
+            raise self._config_invalid(
+                f"Template chartProfile.performance_chart.templateImageHasChart must be boolean: {template_id}"
+            )
+        fallback_type = performance_chart.get("fallbackChartType")
+        if fallback_type not in {"bar", "line"}:
+            raise self._config_invalid(
+                f"Template chartProfile.performance_chart.fallbackChartType must be bar or line: {template_id}"
+            )
+        detected_type = performance_chart.get("detectedChartType")
+        if detected_type is not None and detected_type not in {"bar", "line"}:
+            raise self._config_invalid(
+                f"Template chartProfile.performance_chart.detectedChartType must be null, bar, or line: {template_id}"
+            )
+        if has_chart and detected_type is None:
+            raise self._config_invalid(
+                f"Template chartProfile.performance_chart.detectedChartType is required when template has a chart: {template_id}"
+            )
+
+        return {
+            "performance_chart": TemplateChartProfile(
+                templateImageHasChart=has_chart,
+                detectedChartType=detected_type,
+                fallbackChartType=fallback_type,
+            )
+        }
+
+    def _template_revision_profile(
+        self,
+        item: dict[str, Any],
+        template_id: str,
+    ) -> TemplateRevisionProfile | None:
+        raw_profile = item.get("revisionProfile")
+        if raw_profile is None:
+            return None
+        if not isinstance(raw_profile, dict):
+            raise self._config_invalid(f"Template revisionProfile must be an object when present: {template_id}")
+
+        revision_mode = raw_profile.get("revisionMode")
+        if revision_mode != "minimal_patch":
+            raise self._config_invalid(f"Template revisionProfile.revisionMode must be minimal_patch: {template_id}")
+        preserve_initial_grid = raw_profile.get("preserveInitialGrid")
+        if not isinstance(preserve_initial_grid, bool):
+            raise self._config_invalid(
+                f"Template revisionProfile.preserveInitialGrid must be boolean: {template_id}"
+            )
+        max_drift = raw_profile.get("maxPreviewDimensionDriftRatio")
+        if not isinstance(max_drift, (int, float)) or isinstance(max_drift, bool) or max_drift <= 0:
+            raise self._config_invalid(
+                f"Template revisionProfile.maxPreviewDimensionDriftRatio must be a positive number: {template_id}"
+            )
+        allowed_targets = raw_profile.get("allowedRevisionTargets", [])
+        forbidden_tokens = raw_profile.get("forbiddenCssTokens", [])
+        if not _string_list(allowed_targets):
+            raise self._config_invalid(
+                f"Template revisionProfile.allowedRevisionTargets must be a list of strings: {template_id}"
+            )
+        if not _string_list(forbidden_tokens):
+            raise self._config_invalid(
+                f"Template revisionProfile.forbiddenCssTokens must be a list of strings: {template_id}"
+            )
+        return TemplateRevisionProfile(
+            revisionMode=revision_mode,
+            preserveInitialGrid=preserve_initial_grid,
+            maxPreviewDimensionDriftRatio=float(max_drift),
+            allowedRevisionTargets=list(allowed_targets),
+            forbiddenCssTokens=list(forbidden_tokens),
+        )
+
+    @staticmethod
+    def _config_invalid(detail: str) -> ReportEngineError:
+        return ReportEngineError(ErrorCode.CONFIG_INVALID, detail, stage="repository")
+
     def _ordered_sources_or_error(
         self,
         sources: list[dict[str, Any]],
@@ -133,3 +228,7 @@ class ReportRepository:
                 stage="stage2",
             )
         return [by_key[key] for key in self.COMPONENT_KEYS]
+
+
+def _string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) and item.strip() for item in value)

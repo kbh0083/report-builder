@@ -34,6 +34,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     if args.command == "run":
+        if args.component_mode == "novita" and args.verification_mode == "manual-pass":
+            print(
+                json.dumps(
+                    {
+                        "event": "job.failed",
+                        "detail": (
+                            "component-mode=novita requires verification-mode=novita; "
+                            "manual-pass is limited to sample/offline smoke runs"
+                        ),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 1
         renderer_mode, renderer_event = resolve_renderer_mode(
             args.component_mode,
             args.verification_mode,

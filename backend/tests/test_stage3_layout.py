@@ -122,6 +122,41 @@ class Stage3LayoutTests(unittest.TestCase):
         self.assertIn("rejectedHtml", correction)
         self.assertIn("Custom correction: Return one complete HTML document.", correction["requirements"])
 
+    def test_default_stage3_correction_prioritizes_stage2_component_preservation(self):
+        from report_engine.prompt_store import PromptStore
+
+        requirements = " ".join(PromptStore().read_json("03_layout_correction_requirements.json")).lower()
+
+        self.assertIn("stage 2 component preservation takes priority", requirements)
+        self.assertIn("layout and style reference", requirements)
+        self.assertIn("do not add template sample sections", requirements)
+        self.assertIn("do not remove supplied stage 2 components", requirements)
+        self.assertIn("verificationcorrection.revisioncontract", requirements)
+        self.assertIn("minimal_patch", requirements)
+        self.assertIn("basereportdrafthtml", requirements)
+        self.assertIn("revisionprofile.forbiddencsstokens", requirements)
+        self.assertIn("do not rewrite the entire document", requirements)
+        self.assertIn("do not normalize", requirements)
+        self.assertIn("correction.strictliteralpreservation", requirements)
+
+    def test_validator_accepts_stage2_content_without_template_sample_section_labels(self):
+        from report_engine.stage3_layout import Stage3LayoutService, stage3_component_html
+
+        body = "\n".join(stage3_component_html(component) for component in self.components)
+        html = (
+            "<!doctype html><html><head><style>"
+            f"{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}"
+            "</style></head><body>"
+            f"{body}"
+            "</body></html>"
+        )
+
+        Stage3LayoutService(FakeLayoutAdapter()).validate_report_draft(html, self.components)
+
+        self.assertNotIn("ETF 개요", html)
+        self.assertNotIn("ETF 자산 현황", html)
+        self.assertNotIn("분배금 지급 현황", html)
+
     def test_invalid_stage3_prompt_json_raises_config_invalid(self):
         from report_engine.errors import ErrorCode, ReportEngineError
         from report_engine.prompt_store import PromptStore
@@ -232,6 +267,39 @@ class Stage3LayoutTests(unittest.TestCase):
             correction["requirements"],
         )
 
+    def test_retries_three_corrections_until_source_fragments_are_preserved(self):
+        from report_engine.models import Stage2Component
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = _woori_live_failure_component()
+        adapter = WooriFragmentsValidOnFourthCallAdapter()
+        recorded_attempts = []
+
+        html = Stage3LayoutService(adapter).generate_report_draft(
+            {"components": [{"componentId": component.componentId, "componentKey": component.componentKey, "html": component.html}]},
+            [component],
+            max_correction_attempts=3,
+            attempt_recorder=recorded_attempts.append,
+        )
+
+        self.assertIn("-4.89%", html)
+        self.assertIn("자료 : 삼성자산운용, 2026.03.31 기준", html)
+        self.assertEqual(adapter.call_count, 4)
+        self.assertEqual([item.get("correction", {}).get("attempt") for item in adapter.prompt_inputs[1:]], [1, 2, 3])
+        third_correction = adapter.prompt_inputs[3]["correction"]
+        self.assertTrue(third_correction["strictLiteralPreservation"])
+        self.assertEqual(
+            third_correction["mustRenderFragments"],
+            [
+                "-4.89%",
+                "6.65%",
+                "9.55%",
+                "자료 : 삼성자산운용, 2026.03.31 기준",
+            ],
+        )
+        self.assertEqual([attempt["attempt"] for attempt in recorded_attempts], [0, 1, 2, 3])
+        self.assertEqual(recorded_attempts[-1]["status"], "passed")
+
     def test_rejects_when_correction_output_remains_invalid(self):
         from report_engine.errors import ErrorCode, ReportEngineError
         from report_engine.stage3_layout import Stage3LayoutService
@@ -244,7 +312,11 @@ class Stage3LayoutTests(unittest.TestCase):
             service.generate_report_draft(prompt_input, self.components)
 
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
-        self.assertEqual(adapter.call_count, 2)
+        self.assertEqual(adapter.call_count, 4)
+        loop = getattr(caught.exception, "stage3_validation_loop")
+        self.assertEqual(loop["maxCorrectionAttempts"], 3)
+        self.assertEqual([attempt["attempt"] for attempt in loop["attempts"]], [0, 1, 2, 3])
+        self.assertEqual(loop["attempts"][-1]["status"], "failed")
 
     def test_rejects_layout_missing_non_chart_source_fragment(self):
         from report_engine.errors import ErrorCode, ReportEngineError
@@ -252,12 +324,54 @@ class Stage3LayoutTests(unittest.TestCase):
 
         service = Stage3LayoutService(SourceMissingAdapter())
         prompt_input = service.build_prompt_input(self.template, self.dataset, self.month_snapshot, self.components)
+        html = service._normalize_html(service.llm_adapter.generate_stage3_layout(prompt_input))
 
         with self.assertRaises(ReportEngineError) as caught:
-            service.generate_report_draft(prompt_input, self.components)
+            service.validate_report_draft(html, self.components)
 
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
         self.assertIn("source fragments", str(caught.exception))
+
+    def test_repairs_source_fragment_violations_after_corrections_are_exhausted(self):
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        component = _kb_repair_component()
+        adapter = KbFragmentsAlwaysInvalidAdapter()
+        recorded_attempts = []
+        prompt_input = {
+            "components": [
+                {
+                    "componentId": component.componentId,
+                    "componentKey": component.componentKey,
+                    "renderType": component.renderType,
+                    "html": component.html,
+                }
+            ]
+        }
+
+        html = Stage3LayoutService(adapter).generate_report_draft(
+            prompt_input,
+            [component],
+            max_correction_attempts=1,
+            attempt_recorder=recorded_attempts.append,
+        )
+
+        self.assertEqual(adapter.call_count, 2)
+        self.assertIn("6개월", html)
+        self.assertIn("1년", html)
+        self.assertIn("연초후", html)
+        self.assertIn("0.56%", html)
+        self.assertIn("19.09%", html)
+        self.assertIn("No.", html)
+        self.assertIn("보유비중(%)", html)
+        self.assertIn("합계", html)
+        self.assertIn("37.37", html)
+        self.assertEqual([attempt["phase"] for attempt in recorded_attempts], ["initial", "correction", "local_repair"])
+        self.assertEqual([attempt["status"] for attempt in recorded_attempts], ["failed", "failed", "passed"])
+        self.assertEqual(
+            recorded_attempts[-1]["localRepair"]["repairedComponents"][0]["componentId"],
+            component.componentId,
+        )
 
     def test_allows_template_heading_relabel_when_source_body_fragments_are_preserved(self):
         from report_engine.stage3_layout import Stage3LayoutService
@@ -287,9 +401,10 @@ class Stage3LayoutTests(unittest.TestCase):
         component = _preservation_component()
         service = Stage3LayoutService(MissingTableHeaderAdapter())
         prompt_input = {"components": [{"componentId": component.componentId, "html": component.html}]}
+        html = service._normalize_html(service.llm_adapter.generate_stage3_layout(prompt_input))
 
         with self.assertRaises(ReportEngineError) as caught:
-            service.generate_report_draft(prompt_input, [component])
+            service.validate_report_draft(html, [component])
 
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
 
@@ -300,9 +415,10 @@ class Stage3LayoutTests(unittest.TestCase):
         component = _preservation_component()
         service = Stage3LayoutService(MissingTableNumberAdapter())
         prompt_input = {"components": [{"componentId": component.componentId, "html": component.html}]}
+        html = service._normalize_html(service.llm_adapter.generate_stage3_layout(prompt_input))
 
         with self.assertRaises(ReportEngineError) as caught:
-            service.generate_report_draft(prompt_input, [component])
+            service.validate_report_draft(html, [component])
 
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
 
@@ -640,6 +756,44 @@ class Stage3LayoutTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
         self.assertIn("render charts", str(caught.exception))
 
+    def test_rejects_unsafe_woori_revision_layout_patterns(self):
+        from report_engine.errors import ErrorCode, ReportEngineError
+        from report_engine.stage1_template import Stage1TemplateService
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        woori_template = Stage1TemplateService(self.repository).load_template_context("tpl_woori_monthly_report")
+        service = Stage3LayoutService(WooriUnsafeRevisionAdapter())
+        prompt_input = service.build_prompt_input(woori_template, self.dataset, self.month_snapshot, self.components)
+        prompt_input["verificationCorrection"] = {
+            "revisionMode": "minimal_patch",
+            "baseVersion": 1,
+            "nextVersion": 2,
+        }
+
+        with self.assertRaises(ReportEngineError) as caught:
+            service.generate_report_draft(prompt_input, self.components)
+
+        self.assertEqual(caught.exception.code, ErrorCode.LAYOUT_GENERATION_INVALID)
+        self.assertIn("Woori revision safety", str(caught.exception))
+
+    def test_allows_grid_template_columns_in_woori_revision(self):
+        from report_engine.stage1_template import Stage1TemplateService
+        from report_engine.stage3_layout import Stage3LayoutService
+
+        woori_template = Stage1TemplateService(self.repository).load_template_context("tpl_woori_monthly_report")
+        service = Stage3LayoutService(WooriSafeGridRevisionAdapter())
+        prompt_input = service.build_prompt_input(woori_template, self.dataset, self.month_snapshot, self.components)
+        prompt_input["verificationCorrection"] = {
+            "revisionMode": "minimal_patch",
+            "baseVersion": 1,
+            "nextVersion": 2,
+        }
+
+        html = service.generate_report_draft(prompt_input, self.components)
+
+        self.assertIn("grid-template-columns", html)
+        self.assertIn("data-chart-placeholder", html)
+
     def test_rejects_layout_with_absolute_footer_overlap_risk(self):
         from report_engine.errors import ErrorCode, ReportEngineError
         from report_engine.stage3_layout import Stage3LayoutService
@@ -834,6 +988,38 @@ class PercentMissingThenStructuredCorrectionAdapter(_SequenceLayoutAdapter):
         return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{bad_body}</body></html>"
 
 
+class WooriFragmentsValidOnFourthCallAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
+        source_body = "\n".join(item["html"] for item in prompt_input["components"])
+        bad_body = (
+            source_body
+            .replace("-4.89%", "-4.89")
+            .replace("6.65%", "6.65")
+            .replace("9.55%", "9.55")
+            .replace("자료 : 삼성자산운용, 2026.03.31 기준", "자료 : 삼성자산운용, 2026년 3월 31일 기준")
+        )
+        if call_count < 4:
+            return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{bad_body}</body></html>"
+        return self._valid_html(prompt_input)
+
+
+class KbFragmentsAlwaysInvalidAdapter(_SequenceLayoutAdapter):
+    def _response(self, prompt_input, call_count):
+        source_body = "\n".join(item["html"] for item in prompt_input["components"])
+        bad_body = (
+            source_body
+            .replace("<th>6개월</th>", "<th>6M</th>")
+            .replace("<th>1년</th>", "<th>1Y</th>")
+            .replace("<th>연초후</th>", "<th>YTD</th>")
+            .replace("0.56%", "0.56")
+            .replace("19.09%", "19.09")
+            .replace("<th>No.</th>", "")
+            .replace("<th>보유비중(%)</th>", "<th>비중(%)</th>")
+            .replace('<tr><td colspan="2">합계</td><td>37.37</td></tr>', "")
+        )
+        return f"<!doctype html><html><head><style>{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}</style></head><body>{bad_body}</body></html>"
+
+
 class AlwaysCssMissingAdapter(_SequenceLayoutAdapter):
     def _response(self, prompt_input, call_count):
         body = "\n".join(item["html"] for item in prompt_input["components"])
@@ -989,6 +1175,53 @@ def _preservation_component():
     )
 
 
+def _woori_live_failure_component():
+    from report_engine.models import Stage2Component
+
+    return Stage2Component(
+        componentId="comp_summary",
+        dataSourceId="ds_summary",
+        datasetId="data_x",
+        monthId="2026-03",
+        componentKey="performance_summary",
+        renderType="table",
+        html=(
+            '<section data-component-id="comp_summary">'
+            "<table><tbody><tr>"
+            "<td>-4.89%</td><td>6.65%</td><td>9.55%</td>"
+            "</tr></tbody></table>"
+            "<p>자료 : 삼성자산운용, 2026.03.31 기준</p>"
+            "</section>"
+        ),
+        chartSpec=None,
+        styled=False,
+    )
+
+
+def _kb_repair_component():
+    from report_engine.models import Stage2Component
+
+    return Stage2Component(
+        componentId="comp_kb_summary",
+        dataSourceId="ds_kb_summary",
+        datasetId="data_x",
+        monthId="2026-03",
+        componentKey="performance_summary",
+        renderType="table",
+        html=(
+            '<section data-component-id="comp_kb_summary">'
+            "<h2>ETF 성과 추이 요약</h2>"
+            "<table><thead><tr><th></th><th>1개월</th><th>3개월</th><th>6개월</th><th>1년</th><th>연초후</th></tr></thead>"
+            "<tbody><tr><td>수익률</td><td>5.95%</td><td>11.97%</td><td>0.56%</td><td>19.09%</td><td>11.97%</td></tr></tbody></table>"
+            "<table><thead><tr><th>No.</th><th>종목명</th><th>보유비중(%)</th></tr></thead>"
+            "<tbody><tr><td>1</td><td>NVIDIA Corp</td><td>7.93</td></tr><tr><td colspan=\"2\">합계</td><td>37.37</td></tr></tbody></table>"
+            "</section>"
+        ),
+        chartSpec=None,
+        styled=False,
+    )
+
+
 class MissingComponentAdapter:
     def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
         body = "\n".join(
@@ -1072,6 +1305,39 @@ class DataChartRenderedSvgAdapter:
             '<div data-chart-placeholder="comp_chart">Chart placeholder</div>'
             '<svg data-chart-rendered="performance_chart" viewBox="0 0 10 10"></svg>'
             '</body></html>'
+        )
+
+
+class WooriUnsafeRevisionAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        chart_id = prompt_input["components"][0]["componentId"]
+        body = body.replace(
+            f'<div data-chart-placeholder="{chart_id}"></div>',
+            f'<div data-chart-placeholder="{chart_id}"><div class="chart-visual-mock"></div></div>',
+        )
+        return (
+            "<!doctype html><html><head><style>"
+            f"{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}"
+            ".text-section { columns: 2; }"
+            ".outlook { writing-mode: vertical-rl; }"
+            ".chart-visual-mock { display: flex; }"
+            "</style></head><body>"
+            f"{body}"
+            "</body></html>"
+        )
+
+
+class WooriSafeGridRevisionAdapter:
+    def generate_stage3_layout(self, prompt_input, template_image_data_url=None):
+        body = "\n".join(item["html"] for item in prompt_input["components"])
+        return (
+            "<!doctype html><html><head><style>"
+            f"{_TEMPLATE_CSS_VARS} body {{ margin: 0; }}"
+            ".grid-container { display: grid; grid-template-columns: 1fr 1fr; }"
+            "</style></head><body>"
+            f"{body}"
+            "</body></html>"
         )
 
 

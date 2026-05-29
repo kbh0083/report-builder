@@ -14,16 +14,29 @@ class FinalReport:
     reportHtmlPath: str
     previewImagePath: str
     finalizedAt: str
+    verificationPassed: bool
+    finalizationReason: str
 
 
 class Stage6Finalizer:
     def __init__(self, output_root: str | Path):
         self.output_root = Path(output_root)
 
-    def finalize(self, job_id: str, attempts: list[VerificationAttempt]) -> FinalReport:
+    def finalize(
+        self,
+        job_id: str,
+        attempts: list[VerificationAttempt],
+        *,
+        allow_failed_fallback: bool = False,
+    ) -> FinalReport:
         self._validate_job_id(job_id)
-        passed_attempt = self._latest_passed_attempt(attempts)
-        if passed_attempt is None:
+        source_attempt = self._latest_passed_attempt(attempts)
+        verification_passed = source_attempt is not None
+        finalization_reason = "passed_verification"
+        if source_attempt is None and allow_failed_fallback:
+            source_attempt = self._best_failed_attempt(attempts)
+            finalization_reason = "best_failed_after_max_iterations"
+        if source_attempt is None:
             raise ReportEngineError(
                 ErrorCode.NO_PASSED_VERSION,
                 "No report version passed verification",
@@ -35,17 +48,19 @@ class Stage6Finalizer:
         report_html_path = final_dir / "report.html"
         preview_path = final_dir / "preview.png"
 
-        source_report = Path(passed_attempt.reportVersion.htmlPath)
-        source_preview = Path(passed_attempt.reportVersion.previewImagePath)
+        source_report = Path(source_attempt.reportVersion.htmlPath)
+        source_preview = Path(source_attempt.reportVersion.previewImagePath)
         self._copy_required_file(source_report, report_html_path)
         self._copy_required_file(source_preview, preview_path)
 
         return FinalReport(
             jobId=job_id,
-            sourceVersion=passed_attempt.reportVersion.version,
+            sourceVersion=source_attempt.reportVersion.version,
             reportHtmlPath=str(report_html_path),
             previewImagePath=str(preview_path),
             finalizedAt=datetime.now().astimezone().isoformat(timespec="seconds"),
+            verificationPassed=verification_passed,
+            finalizationReason=finalization_reason,
         )
 
     def _latest_passed_attempt(self, attempts: list[VerificationAttempt]) -> VerificationAttempt | None:
@@ -53,6 +68,12 @@ class Stage6Finalizer:
             if attempt.result.passed:
                 return attempt
         return None
+
+    def _best_failed_attempt(self, attempts: list[VerificationAttempt]) -> VerificationAttempt | None:
+        failed_attempts = [attempt for attempt in attempts if not attempt.result.passed]
+        if not failed_attempts:
+            return None
+        return min(failed_attempts, key=lambda attempt: (attempt.score, attempt.reportVersion.version))
 
     def _copy_required_file(self, source: Path, destination: Path) -> None:
         if not source.is_file() or source.stat().st_size <= 0:

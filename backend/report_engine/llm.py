@@ -555,7 +555,7 @@ class NovitaLlmAdapter:
                     "passed": "boolean",
                     "issues": [
                         {
-                            "type": "overlap|overflow|clipping|missing_content|data_mismatch|chart_rendering|footer_overlap|other",
+                            "type": "overlap|overflow|clipping|missing_content|data_mismatch|chart_rendering|template_mismatch|footer_overlap|other",
                             "severity": "minor|major|critical",
                             "description": "short issue description",
                             "location": "optional page or element location",
@@ -653,6 +653,7 @@ class NovitaLlmAdapter:
             "missing_content",
             "data_mismatch",
             "chart_rendering",
+            "template_mismatch",
             "footer_overlap",
             "other",
         }
@@ -688,7 +689,7 @@ class NovitaLlmAdapter:
 def _template_context_payload(template_context: TemplateContext | None) -> dict[str, Any] | None:
     if template_context is None:
         return None
-    return {
+    payload: dict[str, Any] = {
         "templateId": template_context.templateId,
         "previewImage": template_context.previewImage,
         "page": {
@@ -696,7 +697,24 @@ def _template_context_payload(template_context: TemplateContext | None) -> dict[
             "orientation": template_context.page.orientation,
         },
         "name": template_context.name,
+        "chartProfile": {
+            key: {
+                "templateImageHasChart": value.templateImageHasChart,
+                "detectedChartType": value.detectedChartType,
+                "fallbackChartType": value.fallbackChartType,
+            }
+            for key, value in template_context.chartProfile.items()
+        },
     }
+    if template_context.revisionProfile is not None:
+        payload["revisionProfile"] = {
+            "revisionMode": template_context.revisionProfile.revisionMode,
+            "preserveInitialGrid": template_context.revisionProfile.preserveInitialGrid,
+            "maxPreviewDimensionDriftRatio": template_context.revisionProfile.maxPreviewDimensionDriftRatio,
+            "allowedRevisionTargets": template_context.revisionProfile.allowedRevisionTargets,
+            "forbiddenCssTokens": template_context.revisionProfile.forbiddenCssTokens,
+        }
+    return payload
 
 
 def _template_preview_image_content(template_context: TemplateContext | None) -> list[dict[str, Any]]:

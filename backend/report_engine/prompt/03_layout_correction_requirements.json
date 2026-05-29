@@ -5,9 +5,13 @@
 // ko: 차트가 아닌 컴포넌트는 각 컴포넌트 id를 data-component-id 속성 값으로 복원하고, id 속성으로 대체하지 마세요.
 // ko: 누락된 원본 조각은 correction.sourceFragmentViolations에 제공되며, 모든 항목을 표시 텍스트로 정확히 복원하세요.
 // ko: 표 셀의 부호, %, 통화/단위 기호, 쉼표, 소수점은 원문 그대로 보존하고 별도 주석으로 옮기지 마세요.
+// ko: 날짜 표기, 공백, 문장부호, 한글/영문 표기는 Stage 2 HTML의 표시 텍스트 그대로 유지하고 다른 표기법으로 정규화하지 마세요.
+// ko: correction.strictLiteralPreservation이 true이면 correction.mustRenderFragments의 모든 항목을 표시 텍스트로 정확히 포함하세요.
 // ko: 차트 컴포넌트는 정확한 data-chart-placeholder 컨테이너로만 유지하고, Stage 3에서 차트를 렌더링하지 마세요.
 // ko: SVG, canvas, script 또는 Chart.js로 차트를 렌더링하지 마세요.
 // ko: 각 차트 컴포넌트는 값이 componentId인 data-chart-placeholder 속성을 정확히 하나 포함해야 합니다.
+// ko: verificationCorrection.revisionMode가 minimal_patch이면 baseReportDraftHtml을 기준으로 문제 영역만 좁게 수정하고 전체 문서를 재작성하지 마세요.
+// ko: revisionProfile.forbiddenCssTokens에 포함된 CSS/클래스/토큰은 Woori revision에서 사용하지 마세요.
 // ko: 원시 HTML만 반환하고 Markdown 코드 블록이나 설명은 포함하지 마세요.
 [
   "Return one complete HTML document.",
@@ -17,11 +21,21 @@
   "For non-chart components, restore each component id as a data-component-id attribute value; do not replace it with an id attribute.",
   "Use correction.sourceFragmentViolations as the exact checklist of omitted source text and render every missing fragment visibly.",
   "Preserve table-cell signs, percent symbols, currency or unit symbols, commas, and decimal points exactly; do not move them into separate footnotes.",
+  "Preserve visible date formats, spacing, punctuation, Korean or English notation, and unit placement exactly as shown in Stage 2 HTML; do not normalize them into another format.",
+  "When correction.strictLiteralPreservation is true, render every correction.mustRenderFragments item exactly as visible text.",
   "Keep chart components as exact data-chart-placeholder containers only; do not render charts in Stage 3.",
   "Do not render charts using SVG, canvas, script, or Chart.js.",
   "Each chart component must include exactly one data-chart-placeholder attribute whose value is the componentId.",
   "When correcting footer flow violations, remove position:absolute and position:fixed from footer, .footer, #footer, and bottom disclaimer CSS.",
   "When correcting footer flow violations, do not anchor footer or bottom disclaimers with bottom/left/right overlay coordinates.",
   "When correcting footer flow violations, rewrite forbidden footer CSS from rejectedHtml instead of copying it.",
+  "If verificationCorrection.revisionContract is present, Stage 2 component preservation takes priority over any revisionInstruction that conflicts with it.",
+  "Treat the template preview image as a layout and style reference only; do not add template sample sections, labels, values, holdings, or prose.",
+  "Do not remove supplied Stage 2 components, including review or outlook sections, even when the template preview does not show an equivalent sample section.",
+  "Use verificationCorrection.revisionContract.componentIds and componentKeys as the required checklist for preserving all Stage 2 components.",
+  "If a revisionInstruction asks for template sample content or removal of supplied components, reinterpret it as a request to restyle, compress, or reposition the supplied Stage 2 components.",
+  "If verificationCorrection.revisionMode is minimal_patch, use verificationCorrection.baseReportDraftHtml as the base and patch only the issue-scoped areas.",
+  "When minimal_patch is active, do not rewrite the entire document or replace the main content structure unless the issue explicitly identifies that exact structure as broken.",
+  "When verificationCorrection.revisionProfile.forbiddenCssTokens is present, do not emit CSS, class names, or markup tokens listed there.",
   "Return raw HTML only; do not include Markdown fences or explanations."
 ]
